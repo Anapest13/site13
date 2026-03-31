@@ -56,12 +56,20 @@ export default function Clients() {
     fetch('/api/clients')
       .then(res => res.json())
       .then(data => {
+        console.log('Fetched clients:', data);
         if (Array.isArray(data)) {
-          setClients(data);
+          setClients(data.map(c => ({
+            ...c,
+            full_name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Без имени'
+          })));
         } else {
           console.error('Expected array for clients, got:', data);
           setClients([]);
         }
+      })
+      .catch(err => {
+        console.error('Error fetching clients:', err);
+        setClients([]);
       });
   };
 
@@ -138,7 +146,7 @@ export default function Clients() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients.filter(c => c.full_name.toLowerCase().includes(search.toLowerCase())).map((client) => (
+        {clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).map((client) => (
           <div key={client.id} className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
             

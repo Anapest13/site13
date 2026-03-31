@@ -34,6 +34,12 @@ export default function Inventory() {
   const [showFilters, setShowFilters] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // Autocomplete state
+  const [publisherSearch, setPublisherSearch] = useState('');
+  const [showPublisherSuggestions, setShowPublisherSuggestions] = useState(false);
+  const [authorSearch, setAuthorSearch] = useState('');
+  const [showAuthorSuggestions, setShowAuthorSuggestions] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -177,6 +183,11 @@ export default function Inventory() {
       author_ids: book.author_ids || [],
       genre_ids: book.genre_ids || []
     });
+    
+    const pub = publishers.find(p => p.publisher_id === book.publisher_id);
+    setPublisherSearch(pub ? pub.name : '');
+    setAuthorSearch('');
+    
     setShowModal(true);
   };
 
@@ -208,6 +219,8 @@ export default function Inventory() {
         <button 
           onClick={() => {
             setEditingBook(null);
+            setPublisherSearch('');
+            setAuthorSearch('');
             setFormData({
               title: '',
               isbn: '',
@@ -519,19 +532,55 @@ export default function Inventory() {
                       onChange={e => setFormData({...formData, quantity_in_stock: Number(e.target.value)})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Издательство</label>
-                    <select
-                      required
-                      className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
-                      value={formData.publisher_id}
-                      onChange={e => setFormData({...formData, publisher_id: Number(e.target.value)})}
-                    >
-                      <option value={0}>Выберите издательство</option>
-                      {publishers.map(p => (
-                        <option key={p.publisher_id} value={p.publisher_id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Начните вводить название..."
+                        className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
+                        value={publisherSearch}
+                        onChange={(e) => {
+                          setPublisherSearch(e.target.value);
+                          setShowPublisherSuggestions(true);
+                          // If cleared, reset ID
+                          if (!e.target.value) setFormData({ ...formData, publisher_id: 0 });
+                        }}
+                        onFocus={() => setShowPublisherSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowPublisherSuggestions(false), 200)}
+                      />
+                      <AnimatePresence>
+                        {showPublisherSuggestions && publisherSearch && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="absolute z-[110] left-0 right-0 mt-2 bg-white border border-[#F1F1F4] rounded-2xl shadow-xl max-h-48 overflow-y-auto"
+                          >
+                            {publishers
+                              .filter(p => p.name.toLowerCase().includes(publisherSearch.toLowerCase()))
+                              .map(p => (
+                                <button
+                                  key={p.publisher_id}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({ ...formData, publisher_id: p.publisher_id });
+                                    setPublisherSearch(p.name);
+                                    setShowPublisherSuggestions(false);
+                                  }}
+                                  className="w-full text-left px-5 py-3 hover:bg-indigo-50 transition-colors flex items-center justify-between group"
+                                >
+                                  <span className="font-medium text-[#1A1A1A]">{p.name}</span>
+                                  {formData.publisher_id === p.publisher_id && <Check size={16} className="text-indigo-600" />}
+                                </button>
+                              ))}
+                            {publishers.filter(p => p.name.toLowerCase().includes(publisherSearch.toLowerCase())).length === 0 && (
+                              <div className="px-5 py-3 text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Год публикации</label>
@@ -545,25 +594,74 @@ export default function Inventory() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative">
                   <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Авторы</label>
-                  <div className="flex flex-wrap gap-2 p-5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-3xl max-h-40 overflow-y-auto">
-                    {authors.map(author => (
-                      <button
-                        key={author.author_id}
-                        type="button"
-                        onClick={() => toggleAuthor(author.author_id)}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border",
-                          formData.author_ids.includes(author.author_id)
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
-                            : 'bg-white border-[#F1F1F4] text-[#6B7280] hover:border-indigo-200 hover:text-indigo-600'
-                        )}
-                      >
-                        {author.name}
-                        {formData.author_ids.includes(author.author_id) && <Check size={14} />}
-                      </button>
-                    ))}
+                  
+                  <div className="relative">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {formData.author_ids.map(id => {
+                        const author = authors.find(a => a.author_id === id);
+                        return (
+                          <span key={id} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm">
+                            {author?.name || 'Unknown'}
+                            <button 
+                              type="button" 
+                              onClick={() => toggleAuthor(id)}
+                              className="hover:text-red-200 transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    
+                    <input
+                      type="text"
+                      placeholder="Поиск авторов..."
+                      className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
+                      value={authorSearch}
+                      onChange={(e) => {
+                        setAuthorSearch(e.target.value);
+                        setShowAuthorSuggestions(true);
+                      }}
+                      onFocus={() => setShowAuthorSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowAuthorSuggestions(false), 200)}
+                    />
+                    
+                    <AnimatePresence>
+                      {showAuthorSuggestions && authorSearch && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute z-[110] left-0 right-0 mt-2 bg-white border border-[#F1F1F4] rounded-2xl shadow-xl max-h-48 overflow-y-auto"
+                        >
+                          {authors
+                            .filter(a => a.name.toLowerCase().includes(authorSearch.toLowerCase()))
+                            .map(a => (
+                              <button
+                                key={a.author_id}
+                                type="button"
+                                onClick={() => {
+                                  if (!formData.author_ids.includes(a.author_id)) {
+                                    toggleAuthor(a.author_id);
+                                  }
+                                  setAuthorSearch('');
+                                  setShowAuthorSuggestions(false);
+                                }}
+                                className="w-full text-left px-5 py-3 hover:bg-indigo-50 transition-colors flex items-center justify-between group"
+                              >
+                                <span className="font-medium text-[#1A1A1A]">{a.name}</span>
+                                {formData.author_ids.includes(a.author_id) && <Check size={16} className="text-indigo-600" />}
+                              </button>
+                            ))}
+                          {authors.filter(a => a.name.toLowerCase().includes(authorSearch.toLowerCase())).length === 0 && (
+                            <div className="px-5 py-3 text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
 

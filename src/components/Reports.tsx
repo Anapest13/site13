@@ -57,7 +57,10 @@ export default function Reports() {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setSalesHistory(data);
+          setSalesHistory(data.map(item => ({
+            ...item,
+            total: Number(item.total) || 0
+          })));
         } else {
           setSalesHistory([]);
         }
