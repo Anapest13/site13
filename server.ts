@@ -524,12 +524,14 @@ async function startServer() {
       }
 
       // Dynamic authors creation
-      if ((!author_ids || author_ids.length === 0) && author_names && Array.isArray(author_names)) {
-        author_ids = [];
+      if (author_names && Array.isArray(author_names) && author_names.length > 0) {
+        if (!author_ids) author_ids = [];
         for (const aName of author_names) {
           const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
           if (existingAuth.length > 0) {
-            author_ids.push(existingAuth[0].author_id);
+            if (!author_ids.includes(existingAuth[0].author_id)) {
+              author_ids.push(existingAuth[0].author_id);
+            }
           } else {
             const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
             author_ids.push(newAuth.insertId);
@@ -579,12 +581,14 @@ async function startServer() {
       }
 
       // Dynamic authors creation
-      if ((!author_ids || author_ids.length === 0) && author_names && Array.isArray(author_names)) {
-        author_ids = [];
+      if (author_names && Array.isArray(author_names) && author_names.length > 0) {
+        if (!author_ids) author_ids = [];
         for (const aName of author_names) {
           const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
           if (existingAuth.length > 0) {
-            author_ids.push(existingAuth[0].author_id);
+            if (!author_ids.includes(existingAuth[0].author_id)) {
+              author_ids.push(existingAuth[0].author_id);
+            }
           } else {
             const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
             author_ids.push(newAuth.insertId);

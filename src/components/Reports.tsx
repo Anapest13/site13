@@ -110,46 +110,67 @@ export default function Reports() {
           ];
           
           const headerRow = worksheet.addRow(headers);
+          headerRow.height = 25;
           headerRow.eachCell((cell) => {
-            cell.font = { bold: true };
+            cell.font = { bold: true, size: 11, color: { argb: 'FF1A1A1A' } };
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: 'FFF3F4F6' }
+              fgColor: { argb: 'FFE5E7EB' }
             };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
             cell.border = {
-              top: { style: 'thin' },
+              top: { style: 'medium' },
               left: { style: 'thin' },
-              bottom: { style: 'thin' },
+              bottom: { style: 'medium' },
               right: { style: 'thin' }
             };
           });
 
           // Add data
           detailedData.forEach(item => {
-            const row = worksheet.addRow([
+            const rowValue = [
               item.order_id,
               new Date(item.order_date).toLocaleString('ru-RU'),
               item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
-              item.status,
+              item.status === 'completed' ? 'Завершено' : (item.status === 'pending' ? 'В ожидании' : 'Активно'),
               item.customer_name || 'Гость',
               item.customer_email || '-',
               item.book_title,
               item.book_isbn,
               item.publisher_name || '-',
               item.quantity,
-              item.unit_price,
-              item.item_total,
-              item.order_total,
-              item.order_discount,
-              item.order_net,
+              Number(item.unit_price),
+              Number(item.item_total),
+              Number(item.order_total),
+              Number(item.order_discount),
+              Number(item.order_net),
               item.promotion_name || '-',
               item.promotion_code || '-'
-            ]);
+            ];
+            const row = worksheet.addRow(rowValue);
+            
+            // Format cells
+            row.eachCell((cell, colNumber) => {
+              cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+              };
+              cell.alignment = { vertical: 'middle' };
+              
+              // Align numbers
+              if (colNumber >= 10 && colNumber <= 15) {
+                cell.alignment = { horizontal: 'right', vertical: 'middle' };
+                cell.numFmt = '#,##0.00';
+              }
+            });
 
             // Add color to status column (Index 4 is 'Статус')
             const statusCell = row.getCell(4);
-            const statusValue = statusCell.value?.toString().toLowerCase();
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            const statusValue = item.status?.toLowerCase();
             
             if (statusValue === 'completed' || statusValue === 'завершено' || statusValue === 'выполнен') {
               statusCell.fill = {
@@ -157,21 +178,21 @@ export default function Reports() {
                 pattern: 'solid',
                 fgColor: { argb: 'FFD1FAE5' } // emerald-100
               };
-              statusCell.font = { color: { argb: 'FF059669' }, bold: true }; // emerald-600
+              statusCell.font = { color: { argb: 'FF065F46' }, bold: true }; // emerald-600
             } else if (statusValue === 'pending' || statusValue === 'в ожидании') {
               statusCell.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFFEF3C7' } // amber-100
               };
-              statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; // amber-600
-            } else if (statusValue === 'active' || statusValue === 'активно') {
+              statusCell.font = { color: { argb: 'FFB45309' }, bold: true }; // amber-600
+            } else {
               statusCell.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFDBEAFE' } // blue-100
               };
-              statusCell.font = { color: { argb: 'FF2563EB' }, bold: true }; // blue-600
+              statusCell.font = { color: { argb: 'FF1E40AF' }, bold: true }; // blue-600
             }
           });
 

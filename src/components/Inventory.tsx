@@ -15,7 +15,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Book, Publisher, Author, Genre } from '../types';
-import { GoogleGenAI, Type } from "@google/genai";
 
 export default function Inventory() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -58,101 +57,6 @@ export default function Inventory() {
     author_names: [] as string[], // For new authors
     genre_ids: [] as number[]
   });
-
-  const [scraping, setScraping] = useState(false);
-  const [scrapeUrl, setScrapeUrl] = useState('');
-
-  const handleScrape = async () => {
-    if (!scrapeUrl) return;
-    setScraping(true);
-    try {
-      // 1. Fetch HTML via proxy
-      const htmlRes = await fetch(`/api/scrape-proxy?url=${encodeURIComponent(scrapeUrl)}`);
-      if (!htmlRes.ok) throw new Error('Failed to fetch page');
-      const html = await htmlRes.text();
-
-      // 2. Use Gemini to parse
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Extract book information from this HTML source from Chitay-Gorod. 
-        Focus on finding: Title, ISBN (usually in 'product-detail__characteristics-item'), Price (look for product-price), Description (product-detail__description), Pages (Количество страниц), Cover type (Тип обложки: Твердая/Мягкая), Year (Год издания), Publisher (Издательство), Authors (Авторы), Image (img with product-detail__image).
-        Return as JSON.
-        HTML: ${html.substring(0, 100000)} ...`, // Increased to 100k
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              isbn: { type: Type.STRING },
-              price: { type: Type.NUMBER },
-              description: { type: Type.STRING },
-              pages_count: { type: Type.NUMBER },
-              cover_type: { type: Type.STRING, description: "hard or soft" },
-              publication_year: { type: Type.NUMBER },
-              publisher_name: { type: Type.STRING },
-              authors: { type: Type.ARRAY, items: { type: Type.STRING } },
-              cover_image_url: { type: Type.STRING }
-            }
-          }
-        }
-      });
-
-      const data = JSON.parse(response.text);
-      
-      // Update form
-      setFormData(prev => ({
-        ...prev,
-        title: data.title || prev.title,
-        isbn: data.isbn || prev.isbn,
-        price: data.price || prev.price,
-        description: data.description || prev.description,
-        pages_count: data.pages_count || prev.pages_count,
-        cover_type: data.cover_type === 'soft' ? 'soft' : 'hard',
-        publication_year: data.publication_year || prev.publication_year,
-        cover_image_url: data.cover_image_url || prev.cover_image_url,
-        publisher_name: data.publisher_name || '',
-        author_names: data.authors || []
-      }));
-
-      // Try to find publisher and authors ID
-      if (data.publisher_name) {
-        const pub = publishers.find(p => p.name.toLowerCase() === data.publisher_name.toLowerCase());
-        if (pub) {
-          setFormData(prev => ({ ...prev, publisher_id: pub.publisher_id, publisher_name: '' }));
-          setPublisherSearch(pub.name);
-        } else {
-          setPublisherSearch(data.publisher_name);
-        }
-      }
-
-      if (data.authors && data.authors.length > 0) {
-        const foundIds: number[] = [];
-        const remainingNames: string[] = [];
-        data.authors.forEach((aName: string) => {
-          const auth = authors.find(a => a.name.toLowerCase() === aName.toLowerCase());
-          if (auth) {
-            foundIds.push(auth.author_id);
-          } else {
-            remainingNames.push(aName);
-          }
-        });
-        setFormData(prev => ({ 
-          ...prev, 
-          author_ids: [...new Set([...prev.author_ids, ...foundIds])],
-          author_names: remainingNames
-        }));
-      }
-
-      alert('Данные успешно извлечены!');
-    } catch (err) {
-      console.error('Scraping error:', err);
-      alert('Ошибка при извлечении данных. Проверьте ссылку.');
-    } finally {
-      setScraping(false);
-    }
-  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -734,7 +638,23 @@ export default function Inventory() {
                                 </button>
                               ))}
                             {publishers.filter(p => p.name.toLowerCase().includes(publisherSearch.toLowerCase())).length === 0 && (
-                              <div className="px-5 py-3 text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                              <div className="px-5 py-3 flex flex-col gap-2">
+                                <div className="text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      publisher_id: 0,
+                                      publisher_name: publisherSearch
+                                    }));
+                                    setShowPublisherSuggestions(false);
+                                  }}
+                                  className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl hover:bg-indigo-100 transition-all text-center"
+                                >
+                                  Добавить "{publisherSearch}" как новое изд-во
+                                </button>
+                              </div>
                             )}
                           </motion.div>
                         )}
@@ -781,7 +701,7 @@ export default function Inventory() {
                       {formData.author_ids.map(id => {
                         const author = authors.find(a => a.author_id === id);
                         return (
-                          <span key={id} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm">
+                          <span key={`id-${id}`} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm">
                             {author?.name || 'Unknown'}
                             <button 
                               type="button" 
@@ -793,6 +713,21 @@ export default function Inventory() {
                           </span>
                         );
                       })}
+                      {formData.author_names.map(name => (
+                        <span key={`name-${name}`} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm">
+                          {name} (Новый)
+                          <button 
+                            type="button" 
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              author_names: prev.author_names.filter(n => n !== name)
+                            }))}
+                            className="hover:text-red-200 transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </span>
+                      ))}
                     </div>
                     
                     <input
@@ -836,7 +771,23 @@ export default function Inventory() {
                               </button>
                             ))}
                           {authors.filter(a => a.name.toLowerCase().includes(authorSearch.toLowerCase())).length === 0 && (
-                            <div className="px-5 py-3 text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                            <div className="px-5 py-3 flex flex-col gap-2">
+                              <div className="text-sm text-[#9CA3AF]">Ничего не найдено</div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    author_names: [...new Set([...prev.author_names, authorSearch])]
+                                  }));
+                                  setAuthorSearch('');
+                                  setShowAuthorSuggestions(false);
+                                }}
+                                className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl hover:bg-indigo-100 transition-all text-center"
+                              >
+                                Добавить "{authorSearch}" как нового автора
+                              </button>
+                            </div>
                           )}
                         </motion.div>
                       )}
