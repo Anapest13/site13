@@ -48,12 +48,14 @@ export default function Inventory() {
     price: 0,
     quantity_in_stock: 0,
     publisher_id: 0,
+    publisher_name: '', // For new publisher
     publication_year: new Date().getFullYear(),
     description: '',
     cover_image_url: '',
     pages_count: 0,
     cover_type: 'hard' as 'hard' | 'soft',
     author_ids: [] as number[],
+    author_names: [] as string[], // For new authors
     genre_ids: [] as number[]
   });
 
@@ -74,7 +76,9 @@ export default function Inventory() {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Extract book information from this HTML source from Chitay-Gorod. 
-        HTML: ${html.substring(0, 50000)} ...`, // Clipping to avoid token limit if huge
+        Focus on finding: Title, ISBN (usually in 'product-detail__characteristics-item'), Price (look for product-price), Description (product-detail__description), Pages (Количество страниц), Cover type (Тип обложки: Твердая/Мягкая), Year (Год издания), Publisher (Издательство), Authors (Авторы), Image (img with product-detail__image).
+        Return as JSON.
+        HTML: ${html.substring(0, 100000)} ...`, // Increased to 100k
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -107,25 +111,38 @@ export default function Inventory() {
         pages_count: data.pages_count || prev.pages_count,
         cover_type: data.cover_type === 'soft' ? 'soft' : 'hard',
         publication_year: data.publication_year || prev.publication_year,
-        cover_image_url: data.cover_image_url || prev.cover_image_url
+        cover_image_url: data.cover_image_url || prev.cover_image_url,
+        publisher_name: data.publisher_name || '',
+        author_names: data.authors || []
       }));
 
-      // Try to find publisher and authors
+      // Try to find publisher and authors ID
       if (data.publisher_name) {
-        const pub = publishers.find(p => p.name.toLowerCase().includes(data.publisher_name.toLowerCase()));
+        const pub = publishers.find(p => p.name.toLowerCase() === data.publisher_name.toLowerCase());
         if (pub) {
-          setFormData(prev => ({ ...prev, publisher_id: pub.publisher_id }));
+          setFormData(prev => ({ ...prev, publisher_id: pub.publisher_id, publisher_name: '' }));
           setPublisherSearch(pub.name);
+        } else {
+          setPublisherSearch(data.publisher_name);
         }
       }
 
       if (data.authors && data.authors.length > 0) {
         const foundIds: number[] = [];
+        const remainingNames: string[] = [];
         data.authors.forEach((aName: string) => {
-          const auth = authors.find(a => a.name.toLowerCase().includes(aName.toLowerCase()));
-          if (auth) foundIds.push(auth.author_id);
+          const auth = authors.find(a => a.name.toLowerCase() === aName.toLowerCase());
+          if (auth) {
+            foundIds.push(auth.author_id);
+          } else {
+            remainingNames.push(aName);
+          }
         });
-        setFormData(prev => ({ ...prev, author_ids: [...new Set([...prev.author_ids, ...foundIds])] }));
+        setFormData(prev => ({ 
+          ...prev, 
+          author_ids: [...new Set([...prev.author_ids, ...foundIds])],
+          author_names: remainingNames
+        }));
       }
 
       alert('Данные успешно извлечены!');
@@ -208,8 +225,17 @@ export default function Inventory() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Final check for dynamic entities from search fields if IDs missing
+    let finalPublisherId = formData.publisher_id;
+    let finalPublisherName = formData.publisher_name;
+    if (finalPublisherId === 0 && publisherSearch) {
+      const pub = publishers.find(p => p.name.toLowerCase() === publisherSearch.toLowerCase());
+      if (pub) finalPublisherId = pub.publisher_id;
+      else finalPublisherName = publisherSearch;
+    }
+
     // Validation
-    if (!formData.title || !formData.isbn || formData.price <= 0 || formData.publisher_id === 0 || formData.author_ids.length === 0) {
+    if (!formData.title || !formData.isbn || formData.price <= 0 || (finalPublisherId === 0 && !finalPublisherName) || (formData.author_ids.length === 0 && formData.author_names.length === 0)) {
       alert('Пожалуйста, заполните все обязательные поля корректно (название, ISBN, цена > 0, издательство, хотя бы один автор)');
       return;
     }
@@ -217,11 +243,17 @@ export default function Inventory() {
     const url = editingBook ? `/api/books/${editingBook.book_id}` : '/api/books';
     const method = editingBook ? 'PUT' : 'POST';
 
+    const payload = {
+      ...formData,
+      publisher_id: finalPublisherId,
+      publisher_name: finalPublisherName
+    };
+
     try {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
@@ -235,12 +267,14 @@ export default function Inventory() {
           price: 0,
           quantity_in_stock: 0,
           publisher_id: 0,
+          publisher_name: '',
           publication_year: new Date().getFullYear(),
           description: '',
           cover_image_url: '',
           pages_count: 0,
           cover_type: 'hard',
           author_ids: [],
+          author_names: [],
           genre_ids: []
         });
       }
@@ -265,15 +299,17 @@ export default function Inventory() {
     setFormData({
       title: book.title,
       isbn: book.isbn,
-      price: book.price,
+      price: Number(book.price),
       quantity_in_stock: book.quantity_in_stock,
       publisher_id: book.publisher_id,
+      publisher_name: '',
       publication_year: book.publication_year,
       description: book.description || '',
       cover_image_url: book.cover_image_url || '',
       pages_count: book.pages_count || 0,
       cover_type: book.cover_type || 'hard',
       author_ids: book.author_ids || [],
+      author_names: [],
       genre_ids: book.genre_ids || []
     });
     
@@ -320,12 +356,14 @@ export default function Inventory() {
               price: 0,
               quantity_in_stock: 0,
               publisher_id: 0,
+              publisher_name: '',
               publication_year: new Date().getFullYear(),
               description: '',
               cover_image_url: '',
               pages_count: 0,
               cover_type: 'hard',
               author_ids: [],
+              author_names: [],
               genre_ids: []
             });
             setShowModal(true);

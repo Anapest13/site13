@@ -319,12 +319,14 @@ async function startServer() {
       }
 
       // Seed admin if empty
-      const adminCount = await query("SELECT COUNT(*) as count FROM customers WHERE email = 'admin@bookcity.com'");
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@bookcity.com';
+      const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+      const adminCount = await query("SELECT COUNT(*) as count FROM customers WHERE email = ?", [adminEmail]);
       if (adminCount[0].count === 0) {
-        const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+        const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
         await query(
           'INSERT INTO customers (first_name, last_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)',
-          ['Admin', 'User', 'admin@bookcity.com', '0000', hashedAdminPassword]
+          ['Admin', 'User', adminEmail, '0000', hashedAdminPassword]
         );
       }
     } catch (err) {
@@ -358,7 +360,8 @@ async function startServer() {
       const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) return res.status(401).json({ error: 'Неверный логин или пароль' });
 
-      user.isAdmin = user.email === 'admin@bookcity.com'; 
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@bookcity.com';
+      user.isAdmin = user.email === adminEmail; 
       
       await query('UPDATE customers SET last_login = NOW() WHERE customer_id = ?', [user.customer_id]);
       
@@ -506,17 +509,42 @@ async function startServer() {
   });
 
   app.post('/api/books', async (req, res) => {
-    const { title, isbn, price, quantity_in_stock, publisher_id, author_ids, pages_count, cover_type } = req.body;
+    let { title, isbn, price, quantity_in_stock, publisher_id, author_ids, pages_count, cover_type, publisher_name, author_names } = req.body;
     
-    // Validation
-    if (!title || !isbn || !publisher_id || !author_ids || author_ids.length === 0) {
-      return res.status(400).json({ error: 'Заполните обязательные поля: название, ISBN, издательство и хотя бы одного автора' });
-    }
-    if (price <= 0) return res.status(400).json({ error: 'Цена должна быть больше 0' });
-    if (quantity_in_stock < 0) return res.status(400).json({ error: 'Количество на складе не может быть отрицательным' });
-
-    const { publication_year, description, cover_image_url, genre_ids } = req.body;
     try {
+      // Dynamic publisher creation
+      if ((!publisher_id || publisher_id === 0) && publisher_name) {
+        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name]);
+        if (existingPub.length > 0) {
+          publisher_id = existingPub[0].publisher_id;
+        } else {
+          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, "", "")', [publisher_name]);
+          publisher_id = newPub.insertId;
+        }
+      }
+
+      // Dynamic authors creation
+      if ((!author_ids || author_ids.length === 0) && author_names && Array.isArray(author_names)) {
+        author_ids = [];
+        for (const aName of author_names) {
+          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
+          if (existingAuth.length > 0) {
+            author_ids.push(existingAuth[0].author_id);
+          } else {
+            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
+            author_ids.push(newAuth.insertId);
+          }
+        }
+      }
+
+      // Validation
+      if (!title || !isbn || !publisher_id || !author_ids || author_ids.length === 0) {
+        return res.status(400).json({ error: 'Заполните обязательные поля: название, ISBN, издательство и хотя бы одного автора' });
+      }
+      if (price <= 0) return res.status(400).json({ error: 'Цена должна быть больше 0' });
+      if (quantity_in_stock < 0) return res.status(400).json({ error: 'Количество на складе не может быть отрицательным' });
+
+      const { publication_year, description, cover_image_url, genre_ids } = req.body;
       const result = await query(
         `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count, cover_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count || null, cover_type || null]
@@ -537,8 +565,33 @@ async function startServer() {
   });
 
   app.put('/api/books/:id', async (req, res) => {
-    const { title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, author_ids, genre_ids, pages_count, cover_type } = req.body;
+    let { title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, author_ids, genre_ids, pages_count, cover_type, publisher_name, author_names } = req.body;
     try {
+      // Dynamic publisher creation
+      if ((!publisher_id || publisher_id === 0) && publisher_name) {
+        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name]);
+        if (existingPub.length > 0) {
+          publisher_id = existingPub[0].publisher_id;
+        } else {
+          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, "", "")', [publisher_name]);
+          publisher_id = newPub.insertId;
+        }
+      }
+
+      // Dynamic authors creation
+      if ((!author_ids || author_ids.length === 0) && author_names && Array.isArray(author_names)) {
+        author_ids = [];
+        for (const aName of author_names) {
+          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
+          if (existingAuth.length > 0) {
+            author_ids.push(existingAuth[0].author_id);
+          } else {
+            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
+            author_ids.push(newAuth.insertId);
+          }
+        }
+      }
+
       await query(
         `UPDATE books SET title=?, isbn=?, price=?, quantity_in_stock=?, publisher_id=?, publication_year=?, description=?, cover_image_url=?, pages_count=?, cover_type=? WHERE book_id=?`,
         [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count || null, cover_type || null, req.params.id]
@@ -1010,12 +1063,21 @@ async function startServer() {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+          'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'upgrade-insecure-requests': '1'
         }
       });
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Target site returned ${response.status}` });
+      }
       const html = await response.text();
       res.send(html);
     } catch (err) {
+      console.error('Scraper Proxy Error:', err);
       res.status(500).json({ error: 'Failed to fetch the page' });
     }
   });

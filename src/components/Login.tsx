@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, ArrowRight, Loader2 } from 'lucide-react';
+import InputMask from 'react-input-mask';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -120,7 +121,8 @@ export default function Login({ onLogin }: LoginProps) {
                 <label className="text-xs font-bold text-[#6B7280] uppercase ml-1">Телефон</label>
                 <div className="relative">
                   <Phone className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
-                  <input 
+                  <InputMask 
+                    mask="+7 (999) 999-99-99"
                     required
                     type="tel"
                     placeholder="+7 (999) 000-00-00"
