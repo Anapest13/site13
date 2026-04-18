@@ -1,36 +1,52 @@
-import mysql from "mysql2/promise";
-import "dotenv/config";
 
-async function dropAllTables() {
+import mysql from 'mysql2/promise';
+import 'dotenv/config';
+
+const dropTables = async () => {
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST,
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'root',
+    database: process.env.DB_NAME || 'bookcity',
     port: parseInt(process.env.DB_PORT || '3306'),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    ssl: (process.env.DB_SSL === 'true' || process.env.DB_SSL === 'required') ? { rejectUnauthorized: false } : undefined,
+    ssl: (process.env.DB_SSL === 'true' || process.env.DB_SSL === 'required') ? { rejectUnauthorized: false } : undefined
   });
 
+  console.log('Подключение к базе данных для удаления таблиц...');
+
   try {
-    console.log("🚀 Disabling foreign key checks...");
+    // Отключаем проверку внешних ключей, чтобы удаление прошло без ошибок
     await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    
+    const tables = [
+      'order_items',
+      'book_authors',
+      'book_genres',
+      'invoices',
+      'orders',
+      'books',
+      'promotions',
+      'genres',
+      'authors',
+      'publishers',
+      'customers',
+      'notifications'
+    ];
 
-    const [tables] = await connection.query('SHOW TABLES');
-    const tableNames = (tables as any[]).map(t => Object.values(t)[0]);
-
-    console.log(`📦 Found ${tableNames.length} tables. Dropping them...`);
-    for (const table of tableNames) {
+    for (const table of tables) {
+      console.log(`Удаление таблицы ${table}...`);
       await connection.query(`DROP TABLE IF EXISTS ${table}`);
-      console.log(`✅ Dropped table: ${table}`);
     }
 
     await connection.query('SET FOREIGN_KEY_CHECKS = 1');
-    console.log("✨ All tables dropped successfully!");
+    
+    console.log('--- ОЧИСТКА ЗАВЕРШЕНА ---');
+    console.log('Все таблицы успешно удалены. Теперь перезапустите сервер, чтобы он создал новую структуру.');
   } catch (error) {
-    console.error("❌ Error dropping tables:", error);
+    console.error('Ошибка при удалении таблиц:', error);
   } finally {
     await connection.end();
   }
-}
+};
 
-dropAllTables();
+dropTables();

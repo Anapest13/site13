@@ -192,7 +192,7 @@ async function startServer() {
       try { await query('ALTER TABLE books MODIFY book_id BIGINT UNSIGNED AUTO_INCREMENT'); } catch(e) {}
       try { await query('ALTER TABLE books MODIFY publisher_id BIGINT UNSIGNED'); } catch(e) {}
       try { await query('ALTER TABLE books ADD COLUMN pages_count INT DEFAULT NULL'); } catch(e) {}
-      try { await query('ALTER TABLE books ADD COLUMN cover_type ENUM("hard", "soft") DEFAULT NULL'); } catch(e) {}
+      try { await query("ALTER TABLE books MODIFY COLUMN cover_type ENUM('hard', 'soft') DEFAULT NULL"); } catch(e) {}
 
       await query(`CREATE TABLE IF NOT EXISTS promotions (
         promotion_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -509,34 +509,35 @@ async function startServer() {
   });
 
   app.post('/api/books', async (req, res) => {
-    let { title, isbn, price, quantity_in_stock, publisher_id, author_ids, pages_count, cover_type, publisher_name, author_names } = req.body;
+    let { title, isbn, price, quantity_in_stock, publisher_id, author_ids, pages_count, cover_type, publisher_name, author_names, publication_year, description, cover_image_url, genre_ids } = req.body;
     
     try {
       // Robust ID handling
-      let pId = Number(publisher_id);
-      let aIds = Array.isArray(author_ids) ? author_ids.map(id => Number(id)) : [];
+      let pId: number | null = !isNaN(Number(publisher_id)) && Number(publisher_id) !== 0 ? Number(publisher_id) : null;
+      let aIds: number[] = Array.isArray(author_ids) ? author_ids.map(id => Number(id)).filter(id => !isNaN(id)) : [];
 
       // Dynamic publisher creation
-      if ((!pId || pId === 0) && publisher_name) {
-        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name]);
+      if (!pId && publisher_name && publisher_name.trim()) {
+        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name.trim()]);
         if (existingPub.length > 0) {
           pId = existingPub[0].publisher_id;
         } else {
-          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, "", "")', [publisher_name]);
+          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, ?, ?)', [publisher_name.trim(), "", ""]);
           pId = newPub.insertId;
         }
       }
 
       // Dynamic authors creation
-      if (author_names && Array.isArray(author_names) && author_names.length > 0) {
+      if (author_names && Array.isArray(author_names)) {
         for (const aName of author_names) {
-          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
+          if (!aName || !aName.trim()) continue;
+          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName.trim()]);
           if (existingAuth.length > 0) {
             if (!aIds.includes(existingAuth[0].author_id)) {
               aIds.push(existingAuth[0].author_id);
             }
           } else {
-            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
+            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, ?)', [aName.trim(), ""]);
             aIds.push(newAuth.insertId);
           }
         }
@@ -546,13 +547,21 @@ async function startServer() {
       if (!title || !isbn || !pId || aIds.length === 0) {
         return res.status(400).json({ error: 'Заполните обязательные поля: название, ISBN, издательство и хотя бы одного автора' });
       }
-      if (price <= 0) return res.status(400).json({ error: 'Цена должна быть больше 0' });
-      if (quantity_in_stock < 0) return res.status(400).json({ error: 'Количество на складе не может быть отрицательным' });
 
-      const { publication_year, description, cover_image_url, genre_ids } = req.body;
       const result = await query(
         `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count, cover_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [title, isbn, price, quantity_in_stock, pId, publication_year, description, cover_image_url, pages_count || null, cover_type || null]
+        [
+          title, 
+          isbn, 
+          Number(price) || 0, 
+          Number(quantity_in_stock) || 0, 
+          pId, 
+          Number(publication_year) || null, 
+          description || null, 
+          cover_image_url || null, 
+          Number(pages_count) || null, 
+          cover_type || null
+        ]
       );
       const bookId = result.insertId;
       if (aIds.length > 0) {
@@ -573,30 +582,31 @@ async function startServer() {
     let { title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, author_ids, genre_ids, pages_count, cover_type, publisher_name, author_names } = req.body;
     try {
       // Robust ID handling
-      let pId = Number(publisher_id);
-      let aIds = Array.isArray(author_ids) ? author_ids.map(id => Number(id)) : [];
+      let pId: number | null = !isNaN(Number(publisher_id)) && Number(publisher_id) !== 0 ? Number(publisher_id) : null;
+      let aIds: number[] = Array.isArray(author_ids) ? author_ids.map(id => Number(id)).filter(id => !isNaN(id)) : [];
 
       // Dynamic publisher creation
-      if ((!pId || pId === 0) && publisher_name) {
-        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name]);
+      if (!pId && publisher_name && publisher_name.trim()) {
+        const existingPub = await query('SELECT publisher_id FROM publishers WHERE name = ?', [publisher_name.trim()]);
         if (existingPub.length > 0) {
           pId = existingPub[0].publisher_id;
         } else {
-          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, "", "")', [publisher_name]);
+          const newPub = await query('INSERT INTO publishers (name, email, phone) VALUES (?, ?, ?)', [publisher_name.trim(), "", ""]);
           pId = newPub.insertId;
         }
       }
 
       // Dynamic authors creation
-      if (author_names && Array.isArray(author_names) && author_names.length > 0) {
+      if (author_names && Array.isArray(author_names)) {
         for (const aName of author_names) {
-          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName]);
+          if (!aName || !aName.trim()) continue;
+          const existingAuth = await query('SELECT author_id FROM authors WHERE name = ?', [aName.trim()]);
           if (existingAuth.length > 0) {
             if (!aIds.includes(existingAuth[0].author_id)) {
               aIds.push(existingAuth[0].author_id);
             }
           } else {
-            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, "")', [aName]);
+            const newAuth = await query('INSERT INTO authors (name, biography) VALUES (?, ?)', [aName.trim(), ""]);
             aIds.push(newAuth.insertId);
           }
         }
@@ -608,7 +618,19 @@ async function startServer() {
 
       await query(
         `UPDATE books SET title=?, isbn=?, price=?, quantity_in_stock=?, publisher_id=?, publication_year=?, description=?, cover_image_url=?, pages_count=?, cover_type=? WHERE book_id=?`,
-        [title, isbn, price, quantity_in_stock, pId, publication_year, description, cover_image_url, pages_count || null, cover_type || null, req.params.id]
+        [
+          title, 
+          isbn, 
+          Number(price) || 0, 
+          Number(quantity_in_stock) || 0, 
+          pId, 
+          Number(publication_year) || null, 
+          description || null, 
+          cover_image_url || null, 
+          Number(pages_count) || null, 
+          cover_type || null, 
+          req.params.id
+        ]
       );
       
       // Update authors
