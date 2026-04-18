@@ -13,6 +13,8 @@ import {
 import { Promotion } from '../types';
 import Modal from './Modal';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 export default function Promotions() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -103,39 +105,106 @@ export default function Promotions() {
     );
   };
 
-  const handleExportExcel = () => {
-    const data = promotions.map(p => {
-      const status = getStatus(p);
-      const usageLimit = p.usage_limit || 'Безлимит';
-      const usedCount = p.used_count || 0;
-      const usagePercent = p.usage_limit ? Math.round((usedCount / p.usage_limit) * 100) : 0;
-      
-      return {
-        'Название акции': p.name,
-        'Промокод': p.code_word,
-        'Тип скидки': p.discount_type === 'percentage' ? 'Процент (%)' : 'Фиксированная (₽)',
-        'Значение скидки': p.discount_value,
-        'Дата начала': new Date(p.start_date).toLocaleDateString('ru-RU'),
-        'Дата окончания': new Date(p.end_date).toLocaleDateString('ru-RU'),
-        'Лимит использований': usageLimit,
-        'Использовано раз': usedCount,
-        'Процент использования': p.usage_limit ? `${usagePercent}%` : '-',
-        'Статус': status,
-        'Активность (вручную)': p.is_active === 1 ? 'Да' : 'Нет'
-      };
-    });
-    
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Promotions Report');
-    
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, 
-      { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 20 }
-    ];
+  const handleExportExcel = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Акции и скидки');
 
-    XLSX.writeFile(wb, `promotions-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+      const headers = [
+        'Название акции', 'Промокод', 'Тип скидки', 'Значение', 
+        'Дата начала', 'Дата окончания', 'Лимит', 'Использовано', 
+        'Прогресс', 'Статус', 'Активна (переключатель)'
+      ];
+      
+      const headerRow = worksheet.addRow(headers);
+      headerRow.height = 25;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4F46E5' } // Indigo-600
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'medium' },
+          left: { style: 'thin' },
+          bottom: { style: 'medium' },
+          right: { style: 'thin' }
+        };
+      });
+
+      promotions.forEach(p => {
+        const status = getStatus(p);
+        const usageLimit = p.usage_limit || 'Безлимит';
+        const usedCount = p.used_count || 0;
+        const usagePercent = p.usage_limit ? (usedCount / p.usage_limit) : 0;
+        
+        const row = worksheet.addRow([
+          p.name,
+          p.code_word,
+          p.discount_type === 'percentage' ? 'Процент (%)' : 'Фиксированная (₽)',
+          p.discount_value,
+          new Date(p.start_date),
+          new Date(p.end_date),
+          usageLimit,
+          usedCount,
+          usagePercent,
+          status,
+          p.is_active === 1 ? 'Да' : 'Нет'
+        ]);
+
+        // Format cells
+        row.eachCell((cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+          cell.alignment = { vertical: 'middle' };
+
+          if (colNumber === 4) { // Значение
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = p.discount_type === 'percentage' ? '0"%"' : '#,##0.00 "₽"';
+          }
+          if (colNumber === 5 || colNumber === 6) { // Даты
+            cell.numFmt = 'dd.mm.yyyy';
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+          if (colNumber === 9) { // Прогресс
+            cell.numFmt = '0%';
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        });
+
+        const statusCell = row.getCell(10);
+        statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (status === 'Активна') {
+          statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+          statusCell.font = { color: { argb: 'FF065F46' }, bold: true };
+        } else if (status === 'Завершена') {
+          statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+          statusCell.font = { color: { argb: 'FF991B1B' }, bold: true };
+        } else {
+          statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+          statusCell.font = { color: { argb: 'FFB45309' }, bold: true };
+        }
+      });
+
+      worksheet.columns = [
+        { width: 30 }, { width: 15 }, { width: 22 }, { width: 12 }, 
+        { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
+        { width: 12 }, { width: 18 }, { width: 22 }
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `promotions-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (err) {
+      console.error('Error exporting promotions:', err);
+      alert('Ошибка при экспорте данных');
+    }
   };
   const isActive = (promo: Promotion) => {
     const now = new Date();

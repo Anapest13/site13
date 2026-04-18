@@ -130,12 +130,15 @@ export default function Inventory() {
     e.preventDefault();
 
     // Final check for dynamic entities from search fields if IDs missing
-    let finalPublisherId = formData.publisher_id;
-    let finalPublisherName = formData.publisher_name;
-    if (finalPublisherId === 0 && publisherSearch) {
-      const pub = publishers.find(p => p.name.toLowerCase() === publisherSearch.toLowerCase());
-      if (pub) finalPublisherId = pub.publisher_id;
-      else finalPublisherName = publisherSearch;
+    let finalPublisherId = 0;
+    let finalPublisherName = '';
+    
+    // First, check if publisherSearch matches an existing one
+    const matchingPub = publishers.find(p => p.name.toLowerCase() === publisherSearch.trim().toLowerCase());
+    if (matchingPub) {
+      finalPublisherId = matchingPub.publisher_id;
+    } else if (publisherSearch.trim()) {
+      finalPublisherName = publisherSearch.trim();
     }
 
     // Validation
@@ -181,9 +184,13 @@ export default function Inventory() {
           author_names: [],
           genre_ids: []
         });
+      } else {
+        const errorData = await res.json();
+        alert(`Ошибка: ${errorData.error || 'Не удалось сохранить книгу'}`);
       }
     } catch (error) {
       console.error('Error saving book:', error);
+      alert('Произошла сетевая ошибка при сохранении книги');
     }
   };
 
