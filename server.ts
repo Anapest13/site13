@@ -1053,6 +1053,34 @@ async function startServer() {
     } catch (e) { res.status(500).json(e); }
   });
 
+  app.get('/api/reports/top-categories', async (req, res) => {
+    try {
+      const sql = `
+        SELECT g.name as label, COUNT(oi.item_id) as value
+        FROM genres g
+        JOIN book_genres bg ON g.genre_id = bg.genre_id
+        JOIN order_items oi ON bg.book_id = oi.book_id
+        JOIN orders o ON oi.order_id = o.order_id
+        WHERE o.status = 'completed'
+        GROUP BY g.genre_id, g.name
+        ORDER BY value DESC
+        LIMIT 5
+      `;
+      const results = await query(sql);
+      const total = results.reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
+      
+      const formatted = results.map((row: any, i: number) => ({
+        label: row.label,
+        value: Math.round((Number(row.value) / (total || 1)) * 100),
+        color: ['bg-indigo-500', 'bg-blue-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500'][i % 5]
+      }));
+      
+      res.json(formatted);
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   app.post('/api/upload', upload.single('image'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
     res.json({ url: `images/${req.file.filename}` });

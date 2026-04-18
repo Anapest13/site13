@@ -24,6 +24,7 @@ import { SalesReport } from '../types';
 
 export default function Dashboard() {
   const [salesData, setSalesData] = useState<SalesReport[]>([]);
+  const [topCategories, setTopCategories] = useState<{label: string, value: number, color: string}[]>([]);
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalSales: 0,
@@ -35,12 +36,13 @@ export default function Dashboard() {
     fetch('/api/reports/sales?period=day')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          setSalesData(data);
-        } else {
-          console.error('Expected array for salesData, got:', data);
-          setSalesData([]);
-        }
+        if (Array.isArray(data)) setSalesData(data);
+      });
+
+    fetch('/api/reports/top-categories')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setTopCategories(data);
       });
 
     // Fetch other stats (simplified for now)
@@ -155,6 +157,14 @@ export default function Dashboard() {
                   tickLine={false} 
                   tick={{ fontSize: 11, fill: '#9CA3AF', fontWeight: 600 }}
                   dy={20}
+                  tickFormatter={(value) => {
+                    if (!value) return '';
+                    try {
+                      return new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+                    } catch (e) {
+                      return value;
+                    }
+                  }}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -194,16 +204,11 @@ export default function Dashboard() {
             <p className="text-sm text-[#6B7280] mt-1 font-medium">Распределение продаж по жанрам</p>
           </div>
           <div className="space-y-10 flex-1 mt-12 relative z-10">
-            {[
-              { label: 'Художественная', value: 45, color: 'bg-indigo-500' },
-              { label: 'Научпоп', value: 30, color: 'bg-blue-500' },
-              { label: 'Наука', value: 15, color: 'bg-violet-500' },
-              { label: 'Детская', value: 10, color: 'bg-amber-500' },
-            ].map((cat, i) => (
+            {topCategories.length > 0 ? topCategories.map((cat, i) => (
               <div key={i} className="group cursor-default">
                 <div className="flex justify-between text-sm mb-4">
-                  <span className="font-bold text-[#1A1A1A] group-hover:text-indigo-600 transition-colors">{cat.label}</span>
-                  <span className="text-[#6B7280] font-bold">{cat.value}%</span>
+                  <span className="font-bold text-[#1A1A1A] group-hover:text-indigo-600 transition-colors text-ellipsis overflow-hidden whitespace-nowrap mr-2">{cat.label}</span>
+                  <span className="text-[#6B7280] font-bold shrink-0">{cat.value}%</span>
                 </div>
                 <div className="h-4 bg-gray-50 rounded-full overflow-hidden border border-[#F1F1F4] p-0.5">
                   <div 
@@ -212,7 +217,11 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="flex-1 flex items-center justify-center text-[#6B7280] text-sm font-medium italic">
+                Нет данных о продажах
+              </div>
+            )}
           </div>
         </div>
       </div>

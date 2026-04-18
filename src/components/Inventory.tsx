@@ -531,26 +531,6 @@ export default function Inventory() {
                       <X size={24} />
                     </button>
                   </div>
-                  
-                  {!editingBook && (
-                    <div className="flex gap-2">
-                       <input 
-                        type="text" 
-                        placeholder="Ссылка на Читай-город..."
-                        className="flex-1 px-4 py-2 bg-white border border-[#F1F1F4] rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        value={scrapeUrl}
-                        onChange={(e) => setScrapeUrl(e.target.value)}
-                       />
-                       <button 
-                        type="button"
-                        disabled={scraping}
-                        onClick={handleScrape}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
-                       >
-                        {scraping ? 'Загрузка...' : 'Заполнить из Читай-город'}
-                       </button>
-                    </div>
-                  )}
                 </div>
               
               <form onSubmit={handleSubmit} className="p-10 overflow-y-auto flex-1 space-y-8">

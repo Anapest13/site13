@@ -108,8 +108,9 @@ export default function Login({ onLogin }: LoginProps) {
                   required
                   type="email"
                   placeholder="name@example.com"
+                  name="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
                   className="w-full pl-11 pr-4 py-3 bg-[#F3F4F6] border-none rounded-xl focus:ring-2 focus:ring-[#1A1A1A]/10 transition-all text-sm"
                 />
               </div>
@@ -124,8 +125,28 @@ export default function Login({ onLogin }: LoginProps) {
                     required
                     type="tel"
                     placeholder="+7 (999) 000-00-00"
+                    maxLength={12}
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      // Force +7 start
+                      if (val.length > 0 && !val.startsWith('+7')) {
+                        if (val.startsWith('7') || val.startsWith('8')) val = '+7' + val.substring(1);
+                        else if (!val.startsWith('+')) val = '+7' + val;
+                        else val = '+7';
+                      }
+                      // Allow only numbers after +
+                      if (val.length > 2) {
+                        const numbers = val.substring(2).replace(/\D/g, '');
+                        val = '+7' + numbers;
+                      }
+                      if (val.length <= 12) {
+                        setFormData({ ...formData, phone: val });
+                      }
+                    }}
+                    onFocus={(e) => {
+                      if (!formData.phone) setFormData({ ...formData, phone: '+7' });
+                    }}
                     className="w-full pl-11 pr-4 py-3 bg-[#F3F4F6] border-none rounded-xl focus:ring-2 focus:ring-[#1A1A1A]/10 transition-all text-sm"
                   />
                 </div>
