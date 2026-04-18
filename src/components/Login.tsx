@@ -151,6 +151,23 @@ export default function Login({ onLogin }: LoginProps) {
               <p className="text-xs font-bold text-red-500 ml-1">{error}</p>
             )}
 
+            {!isLogin && (
+              <div className="space-y-4 pt-2 pb-2">
+                <div className="flex items-start gap-3">
+                  <input required id="consent" type="checkbox" className="mt-1 w-4 h-4 rounded border-gray-300 text-[#1A1A1A] focus:ring-[#1A1A1A]/20" />
+                  <label htmlFor="consent" className="text-xs text-[#6B7280] leading-relaxed">
+                    Я согласен на <span className="font-bold text-[#1A1A1A] underline cursor-pointer">обработку персональных данных</span>
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input required id="policy" type="checkbox" className="mt-1 w-4 h-4 rounded border-gray-300 text-[#1A1A1A] focus:ring-[#1A1A1A]/20" />
+                  <label htmlFor="policy" className="text-xs text-[#6B7280] leading-relaxed">
+                    Я принимаю <span className="font-bold text-[#1A1A1A] underline cursor-pointer">Политику конфиденциальности</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <button 
               type="submit"
               disabled={loading}

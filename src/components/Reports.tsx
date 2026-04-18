@@ -24,7 +24,8 @@ import {
 } from 'recharts';
 import { cn } from '../lib/utils';
 import { UserActivityReport, SalesReport } from '../types';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 export default function Reports() {
   const [userActivity, setUserActivity] = useState<UserActivityReport[]>([]);
@@ -74,7 +75,7 @@ export default function Reports() {
   const handleExportExcel = async () => {
     try {
       const periods = ['day', 'month', 'year'];
-      const wb = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
 
       for (const p of periods) {
         const queryParams = new URLSearchParams();
@@ -86,47 +87,112 @@ export default function Reports() {
         const detailedData = await res.json();
 
         if (Array.isArray(detailedData) && detailedData.length > 0) {
-          const formattedData = detailedData.map(item => ({
-            'ID Заказа': item.order_id,
-            'Дата': new Date(item.order_date).toLocaleString('ru-RU'),
-            'Тип': item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
-            'Статус': item.status,
-            'Клиент': item.customer_name || 'Гость',
-            'Email': item.customer_email || '-',
-            'Книга': item.book_title,
-            'ISBN': item.book_isbn,
-            'Издательство': item.publisher_name || '-',
-            'Кол-во': item.quantity,
-            'Цена за ед. (₽)': item.unit_price,
-            'Итого по позиции (₽)': item.item_total,
-            'Сумма заказа (без скидки) (₽)': item.order_total,
-            'Скидка заказа (₽)': item.order_discount,
-            'Итого к оплате (₽)': item.order_net,
-            'Акция': item.promotion_name || '-',
-            'Промокод': item.promotion_code || '-'
-          }));
-          
-          const ws = XLSX.utils.json_to_sheet(formattedData);
-          
-          // Auto-size columns
-          ws['!cols'] = [ 
-            { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, 
-            { wch: 25 }, { wch: 40 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, 
-            { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, 
-            { wch: 25 }, { wch: 15 } 
-          ];
-
           const sheetName = p === 'day' ? 'День' : (p === 'month' ? 'Месяц' : 'Год');
-          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          const worksheet = workbook.addWorksheet(sheetName);
+
+          // Add Title
+          worksheet.mergeCells('A1:Q1');
+          const titleCell = worksheet.getCell('A1');
+          titleCell.value = `Отчет по продажам (${sheetName}) - ${new Date().toLocaleDateString('ru-RU')}`;
+          titleCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+          titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+          titleCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4F46E5' } // Indigo-600
+          };
+
+          // Define headers
+          const headers = [
+            'ID Заказа', 'Дата', 'Тип', 'Статус', 'Клиент', 'Email', 'Книга', 'ISBN', 
+            'Издательство', 'Кол-во', 'Цена (₽)', 'Итого (поз.)', 'Сумма (заказ)', 
+            'Скидка', 'Итого (оплата)', 'Акция', 'Промокод'
+          ];
+          
+          const headerRow = worksheet.addRow(headers);
+          headerRow.eachCell((cell) => {
+            cell.font = { bold: true };
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFF3F4F6' }
+            };
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+          });
+
+          // Add data
+          detailedData.forEach(item => {
+            const row = worksheet.addRow([
+              item.order_id,
+              new Date(item.order_date).toLocaleString('ru-RU'),
+              item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
+              item.status,
+              item.customer_name || 'Гость',
+              item.customer_email || '-',
+              item.book_title,
+              item.book_isbn,
+              item.publisher_name || '-',
+              item.quantity,
+              item.unit_price,
+              item.item_total,
+              item.order_total,
+              item.order_discount,
+              item.order_net,
+              item.promotion_name || '-',
+              item.promotion_code || '-'
+            ]);
+
+            // Add color to status column (Index 4 is 'Статус')
+            const statusCell = row.getCell(4);
+            const statusValue = statusCell.value?.toString().toLowerCase();
+            
+            if (statusValue === 'completed' || statusValue === 'завершено' || statusValue === 'выполнен') {
+              statusCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFD1FAE5' } // emerald-100
+              };
+              statusCell.font = { color: { argb: 'FF059669' }, bold: true }; // emerald-600
+            } else if (statusValue === 'pending' || statusValue === 'в ожидании') {
+              statusCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFEF3C7' } // amber-100
+              };
+              statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; // amber-600
+            } else if (statusValue === 'active' || statusValue === 'активно') {
+              statusCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFDBEAFE' } // blue-100
+              };
+              statusCell.font = { color: { argb: 'FF2563EB' }, bold: true }; // blue-600
+            }
+          });
+
+          // Set column widths
+          worksheet.columns = [
+            { width: 10 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 25 },
+            { width: 25 }, { width: 40 }, { width: 15 }, { width: 20 }, { width: 10 },
+            { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
+            { width: 25 }, { width: 15 }
+          ];
         }
       }
 
-      if (wb.SheetNames.length === 0) {
+      if (workbook.worksheets.length === 0) {
         alert('Нет данных для экспорта');
         return;
       }
 
-      XLSX.writeFile(wb, `detailed-sales-full-${new Date().toISOString().split('T')[0]}.xlsx`);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `detailed-sales-full-${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err) {
       console.error('Error exporting detailed sales:', err);
       alert('Ошибка при экспорте данных');
@@ -246,6 +312,20 @@ export default function Reports() {
                 tickLine={false} 
                 tick={{ fontSize: 11, fill: '#9CA3AF', fontWeight: 600 }}
                 dy={15}
+                tickFormatter={(value) => {
+                  if (!value) return '';
+                  if (period === 'month') {
+                    const [year, month] = value.split('-');
+                    const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                    return month ? `${months[parseInt(month) - 1]} ${year}` : value;
+                  }
+                  if (period === 'year') return value;
+                  try {
+                    return new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+                  } catch (e) {
+                    return value;
+                  }
+                }}
               />
               <YAxis 
                 axisLine={false} 

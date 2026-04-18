@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Book, Publisher, Author, Genre } from '../types';
+import { GoogleGenAI, Type } from "@google/genai";
 
 export default function Inventory() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -50,9 +51,91 @@ export default function Inventory() {
     publication_year: new Date().getFullYear(),
     description: '',
     cover_image_url: '',
+    pages_count: 0,
+    cover_type: 'hard' as 'hard' | 'soft',
     author_ids: [] as number[],
     genre_ids: [] as number[]
   });
+
+  const [scraping, setScraping] = useState(false);
+  const [scrapeUrl, setScrapeUrl] = useState('');
+
+  const handleScrape = async () => {
+    if (!scrapeUrl) return;
+    setScraping(true);
+    try {
+      // 1. Fetch HTML via proxy
+      const htmlRes = await fetch(`/api/scrape-proxy?url=${encodeURIComponent(scrapeUrl)}`);
+      if (!htmlRes.ok) throw new Error('Failed to fetch page');
+      const html = await htmlRes.text();
+
+      // 2. Use Gemini to parse
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Extract book information from this HTML source from Chitay-Gorod. 
+        HTML: ${html.substring(0, 50000)} ...`, // Clipping to avoid token limit if huge
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              isbn: { type: Type.STRING },
+              price: { type: Type.NUMBER },
+              description: { type: Type.STRING },
+              pages_count: { type: Type.NUMBER },
+              cover_type: { type: Type.STRING, description: "hard or soft" },
+              publication_year: { type: Type.NUMBER },
+              publisher_name: { type: Type.STRING },
+              authors: { type: Type.ARRAY, items: { type: Type.STRING } },
+              cover_image_url: { type: Type.STRING }
+            }
+          }
+        }
+      });
+
+      const data = JSON.parse(response.text);
+      
+      // Update form
+      setFormData(prev => ({
+        ...prev,
+        title: data.title || prev.title,
+        isbn: data.isbn || prev.isbn,
+        price: data.price || prev.price,
+        description: data.description || prev.description,
+        pages_count: data.pages_count || prev.pages_count,
+        cover_type: data.cover_type === 'soft' ? 'soft' : 'hard',
+        publication_year: data.publication_year || prev.publication_year,
+        cover_image_url: data.cover_image_url || prev.cover_image_url
+      }));
+
+      // Try to find publisher and authors
+      if (data.publisher_name) {
+        const pub = publishers.find(p => p.name.toLowerCase().includes(data.publisher_name.toLowerCase()));
+        if (pub) {
+          setFormData(prev => ({ ...prev, publisher_id: pub.publisher_id }));
+          setPublisherSearch(pub.name);
+        }
+      }
+
+      if (data.authors && data.authors.length > 0) {
+        const foundIds: number[] = [];
+        data.authors.forEach((aName: string) => {
+          const auth = authors.find(a => a.name.toLowerCase().includes(aName.toLowerCase()));
+          if (auth) foundIds.push(auth.author_id);
+        });
+        setFormData(prev => ({ ...prev, author_ids: [...new Set([...prev.author_ids, ...foundIds])] }));
+      }
+
+      alert('Данные успешно извлечены!');
+    } catch (err) {
+      console.error('Scraping error:', err);
+      alert('Ошибка при извлечении данных. Проверьте ссылку.');
+    } finally {
+      setScraping(false);
+    }
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,7 +164,7 @@ export default function Inventory() {
     if (url.startsWith('http')) return url;
     if (url.startsWith('/')) return url;
     if (url.startsWith('images/')) return `/${url}`;
-    return `/images/books/${url}`;
+    return `/images/${url}`;
   };
 
   useEffect(() => {
@@ -106,13 +189,19 @@ export default function Inventory() {
         fetch('/api/genres')
       ]);
       
-      setBooks(await booksRes.json());
-      setPublishers(await pubRes.json());
-      setAuthors(await authRes.json());
-      setGenres(await genRes.json());
-      setLoading(false);
+      const booksData = booksRes.ok ? await booksRes.json() : [];
+      const pubData = pubRes.ok ? await pubRes.json() : [];
+      const authData = authRes.ok ? await authRes.json() : [];
+      const genData = genRes.ok ? await genRes.json() : [];
+      
+      setBooks(Array.isArray(booksData) ? booksData : []);
+      setPublishers(Array.isArray(pubData) ? pubData : []);
+      setAuthors(Array.isArray(authData) ? authData : []);
+      setGenres(Array.isArray(genData) ? genData : []);
     } catch (error) {
       console.error('Error fetching inventory data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -149,6 +238,8 @@ export default function Inventory() {
           publication_year: new Date().getFullYear(),
           description: '',
           cover_image_url: '',
+          pages_count: 0,
+          cover_type: 'hard',
           author_ids: [],
           genre_ids: []
         });
@@ -180,6 +271,8 @@ export default function Inventory() {
       publication_year: book.publication_year,
       description: book.description || '',
       cover_image_url: book.cover_image_url || '',
+      pages_count: book.pages_count || 0,
+      cover_type: book.cover_type || 'hard',
       author_ids: book.author_ids || [],
       genre_ids: book.genre_ids || []
     });
@@ -230,6 +323,8 @@ export default function Inventory() {
               publication_year: new Date().getFullYear(),
               description: '',
               cover_image_url: '',
+              pages_count: 0,
+              cover_type: 'hard',
               author_ids: [],
               genre_ids: []
             });
@@ -419,6 +514,10 @@ export default function Inventory() {
                           <div className="text-xs font-semibold text-indigo-600 mt-1">
                             {book.authors_list?.map(a => a.name).join(', ')}
                           </div>
+                          <div className="flex gap-2 mt-1">
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold uppercase">{book.cover_type === 'hard' ? 'Твердая' : 'Мягкая'}</span>
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold uppercase">{book.pages_count} стр.</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -478,17 +577,39 @@ export default function Inventory() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-[40px] shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col border border-white/20"
             >
-              <div className="p-8 border-b border-[#F1F1F4] flex justify-between items-center bg-gray-50/30">
-                <div>
-                  <h2 className="text-2xl font-bold text-[#1A1A1A]">
-                    {editingBook ? 'Редактировать книгу' : 'Добавить книгу'}
-                  </h2>
-                  <p className="text-sm text-[#6B7280] mt-1">Заполните информацию о издании.</p>
+                <div className="p-8 border-b border-[#F1F1F4] flex flex-col gap-4 bg-indigo-50/30">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-2xl font-bold text-[#1A1A1A]">
+                        {editingBook ? 'Редактировать книгу' : 'Добавить книгу'}
+                      </h2>
+                      <p className="text-sm text-[#6B7280] mt-1">Заполните информацию о издании.</p>
+                    </div>
+                    <button onClick={() => setShowModal(false)} className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm">
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  {!editingBook && (
+                    <div className="flex gap-2">
+                       <input 
+                        type="text" 
+                        placeholder="Ссылка на Читай-город..."
+                        className="flex-1 px-4 py-2 bg-white border border-[#F1F1F4] rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        value={scrapeUrl}
+                        onChange={(e) => setScrapeUrl(e.target.value)}
+                       />
+                       <button 
+                        type="button"
+                        disabled={scraping}
+                        onClick={handleScrape}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                       >
+                        {scraping ? 'Загрузка...' : 'Заполнить из Читай-город'}
+                       </button>
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => setShowModal(false)} className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm">
-                  <X size={24} />
-                </button>
-              </div>
               
               <form onSubmit={handleSubmit} className="p-10 overflow-y-auto flex-1 space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -591,6 +712,26 @@ export default function Inventory() {
                       value={formData.publication_year}
                       onChange={e => setFormData({...formData, publication_year: Number(e.target.value)})}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Кол-во страниц</label>
+                    <input
+                      type="number"
+                      className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
+                      value={formData.pages_count}
+                      onChange={e => setFormData({...formData, pages_count: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Тип обложки</label>
+                    <select
+                      className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
+                      value={formData.cover_type}
+                      onChange={e => setFormData({...formData, cover_type: e.target.value as 'hard' | 'soft'})}
+                    >
+                      <option value="hard">Твердая</option>
+                      <option value="soft">Мягкая</option>
+                    </select>
                   </div>
                 </div>
 

@@ -184,11 +184,15 @@ async function startServer() {
         publication_year INT,
         description TEXT,
         cover_image_url VARCHAR(500),
+        pages_count INT DEFAULT NULL,
+        cover_type ENUM('hard', 'soft') DEFAULT NULL,
         FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id)
       )`);
       console.log('Books table checked');
       try { await query('ALTER TABLE books MODIFY book_id BIGINT UNSIGNED AUTO_INCREMENT'); } catch(e) {}
       try { await query('ALTER TABLE books MODIFY publisher_id BIGINT UNSIGNED'); } catch(e) {}
+      try { await query('ALTER TABLE books ADD COLUMN pages_count INT DEFAULT NULL'); } catch(e) {}
+      try { await query('ALTER TABLE books ADD COLUMN cover_type ENUM("hard", "soft") DEFAULT NULL'); } catch(e) {}
 
       await query(`CREATE TABLE IF NOT EXISTS promotions (
         promotion_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -367,7 +371,7 @@ async function startServer() {
 
   app.get('/api/clients', async (req, res) => {
     try {
-      const results = await query('SELECT customer_id as id, first_name, last_name, CONCAT(first_name, " ", last_name) as full_name, email, phone, registration_date as created_at FROM customers');
+      const results = await query('SELECT customer_id as id, first_name, last_name, CONCAT(first_name, \' \', last_name) as full_name, email, phone, registration_date as created_at, last_login FROM customers');
       res.json(results);
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
@@ -486,12 +490,15 @@ async function startServer() {
           JOIN book_genres bg ON g.genre_id = bg.genre_id 
           WHERE bg.book_id = ?`, [book.book_id]);
           
+        const authorsList = Array.isArray(authors) ? authors : [];
+        const genresList = Array.isArray(genres) ? genres : [];
+
         return { 
           ...book, 
-          author_ids: authors.map((a: any) => a.author_id), 
-          authors_list: authors,
-          genre_ids: genres.map((g: any) => g.genre_id),
-          genres_list: genres
+          author_ids: authorsList.map((a: any) => a.author_id), 
+          authors_list: authorsList,
+          genre_ids: genresList.map((g: any) => g.genre_id),
+          genres_list: genresList
         };
       }));
       res.json(booksWithDetails);
@@ -499,7 +506,7 @@ async function startServer() {
   });
 
   app.post('/api/books', async (req, res) => {
-    const { title, isbn, price, quantity_in_stock, publisher_id, author_ids } = req.body;
+    const { title, isbn, price, quantity_in_stock, publisher_id, author_ids, pages_count, cover_type } = req.body;
     
     // Validation
     if (!title || !isbn || !publisher_id || !author_ids || author_ids.length === 0) {
@@ -511,8 +518,8 @@ async function startServer() {
     const { publication_year, description, cover_image_url, genre_ids } = req.body;
     try {
       const result = await query(
-        `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url]
+        `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count, cover_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count || null, cover_type || null]
       );
       const bookId = result.insertId;
       if (author_ids && author_ids.length > 0) {
@@ -530,11 +537,11 @@ async function startServer() {
   });
 
   app.put('/api/books/:id', async (req, res) => {
-    const { title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, author_ids, genre_ids } = req.body;
+    const { title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, author_ids, genre_ids, pages_count, cover_type } = req.body;
     try {
       await query(
-        `UPDATE books SET title=?, isbn=?, price=?, quantity_in_stock=?, publisher_id=?, publication_year=?, description=?, cover_image_url=? WHERE book_id=?`,
-        [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, req.params.id]
+        `UPDATE books SET title=?, isbn=?, price=?, quantity_in_stock=?, publisher_id=?, publication_year=?, description=?, cover_image_url=?, pages_count=?, cover_type=? WHERE book_id=?`,
+        [title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, cover_image_url, pages_count || null, cover_type || null, req.params.id]
       );
       
       // Update authors
@@ -887,7 +894,7 @@ async function startServer() {
     const { start_date, end_date, period = 'day' } = req.query;
     try {
       let groupBy = 'DATE(order_date)';
-      if (period === 'month') groupBy = 'DATE_FORMAT(order_date, "%Y-%m")';
+      if (period === 'month') groupBy = 'DATE_FORMAT(order_date, \'%Y-%m\')';
       if (period === 'year') groupBy = 'YEAR(order_date)';
 
       let sql = `
@@ -995,6 +1002,23 @@ async function startServer() {
   });
 
   app.use('/images', express.static(imagesDir));
+
+  // --- SCRAPING PROXY ---
+  app.get('/api/scrape-proxy', async (req, res) => {
+    const { url } = req.query;
+    if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL is required' });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+      const html = await response.text();
+      res.send(html);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch the page' });
+    }
+  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

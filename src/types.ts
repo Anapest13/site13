@@ -27,6 +27,8 @@ export interface Book {
   publication_year: number;
   description: string;
   cover_image_url: string;
+  pages_count?: number;
+  cover_type?: 'hard' | 'soft';
   reserved_quantity?: number;
   author_ids?: number[];
   authors_list?: Author[];
