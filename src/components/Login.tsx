@@ -106,7 +106,7 @@ export default function Login({ onLogin }: LoginProps) {
                 <Mail className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
                 <input 
                   required
-                  type="email"
+                  type="text"
                   placeholder="name@example.com"
                   name="email"
                   value={formData.email}

@@ -292,10 +292,15 @@ async function startServer() {
         total_amount DECIMAL(10, 2) NOT NULL,
         paid_status BOOLEAN DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (order_id) REFERENCES orders(order_id)
+        FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
       )`);
       try { await query('ALTER TABLE invoices MODIFY invoice_id BIGINT UNSIGNED AUTO_INCREMENT'); } catch(e) {}
       try { await query('ALTER TABLE invoices MODIFY order_id BIGINT UNSIGNED'); } catch(e) {}
+      try {
+        // Update foreign key to allow cascade delete
+        await query('ALTER TABLE invoices DROP FOREIGN KEY invoices_ibfk_1');
+        await query('ALTER TABLE invoices ADD CONSTRAINT invoices_ibfk_1 FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE');
+      } catch (e) { /* ignore if constraint name different or already set */ }
 
       await query(`CREATE TABLE IF NOT EXISTS notifications (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -423,10 +428,11 @@ async function startServer() {
   });
 
   app.get('/api/books', async (req, res) => {
-    const { search, genre_id, publisher_id, author_id, year, min_stock, sort } = req.query;
+    const { search, genre_id, publisher_id, author_id, year, min_stock, sort, publisher_name, author_name } = req.query;
     try {
       let sql = `
-        SELECT b.*, p.name as publisher_name, p.email as publisher_email, p.phone as publisher_phone
+        SELECT b.*, p.name as publisher_name, p.email as publisher_email, p.phone as publisher_phone,
+               (SELECT COUNT(*) FROM order_items oi WHERE oi.book_id = b.book_id) as sales_count
         FROM books b 
         LEFT JOIN publishers p ON b.publisher_id = p.publisher_id
       `;
@@ -443,6 +449,16 @@ async function startServer() {
         )`);
         const searchParam = `%${search}%`;
         params.push(searchParam, searchParam, searchParam, searchParam, searchParam);
+      }
+
+      if (publisher_name) {
+        conditions.push(`LOWER(p.name) LIKE LOWER(?)`);
+        params.push(`%${publisher_name}%`);
+      }
+
+      if (author_name) {
+        conditions.push(`b.book_id IN (SELECT ba.book_id FROM book_authors ba JOIN authors a ON ba.author_id = a.author_id WHERE LOWER(a.name) LIKE LOWER(?))`);
+        params.push(`%${author_name}%`);
       }
       
       if (genre_id) {
@@ -476,6 +492,8 @@ async function startServer() {
 
       if (sort === 'price_asc') sql += ` ORDER BY b.price ASC`;
       else if (sort === 'price_desc') sql += ` ORDER BY b.price DESC`;
+      else if (sort === 'stock_asc') sql += ` ORDER BY b.quantity_in_stock ASC`;
+      else if (sort === 'stock_desc') sql += ` ORDER BY b.quantity_in_stock DESC`;
       else if (sort === 'newest') sql += ` ORDER BY b.publication_year DESC`;
       else sql += ` ORDER BY b.book_id DESC`;
       
@@ -863,15 +881,20 @@ async function startServer() {
   // --- ANALYTICS ---
   app.delete('/api/orders/:id', async (req, res) => {
     try {
+      console.log(`Deleting order ${req.params.id}`);
       await query('DELETE FROM orders WHERE order_id = ?', [req.params.id]);
       res.json({ message: 'Order deleted' });
-    } catch (err) { res.status(500).json({ error: (err as Error).message }); }
+    } catch (err) { 
+      console.error('Delete order error:', err);
+      res.status(500).json({ error: (err as Error).message || 'Internal Server Error' }); 
+    }
   });
 
   app.patch('/api/orders/:id/status', async (req, res) => {
     const { status } = req.body;
     try {
       const orderId = req.params.id;
+      console.log(`Updating status of order ${orderId} to ${status}`);
       const [order] = await query('SELECT * FROM orders WHERE order_id = ?', [orderId]);
       
       if (!order) return res.status(404).json({ error: 'Заказ не найден' });
@@ -890,7 +913,7 @@ async function startServer() {
             [orderId, invoiceNum, item.unit_price * item.quantity]
           );
         }
-        await query('UPDATE orders SET order_type = "sale" WHERE order_id = ?', [orderId]);
+        await query("UPDATE orders SET order_type = 'sale' WHERE order_id = ?", [orderId]);
       }
 
       // If confirming a booking
@@ -907,7 +930,7 @@ async function startServer() {
             [orderId, invoiceNum, item.unit_price * item.quantity]
           );
         }
-        await query('UPDATE orders SET order_type = "sale" WHERE order_id = ?', [orderId]);
+        await query("UPDATE orders SET order_type = 'sale' WHERE order_id = ?", [orderId]);
       }
 
       // If cancelling a booking
@@ -919,9 +942,12 @@ async function startServer() {
         }
       }
 
-      await query('UPDATE orders SET status = ? WHERE order_id = ?', [status, orderId]);
+      const result = await query('UPDATE orders SET status = ? WHERE order_id = ?', [status, orderId]);
+      console.log(`Status update result:`, result);
       res.json({ message: 'Статус обновлен' });
-    } catch (e) { res.status(500).json(e); }
+    } catch (e) { 
+      res.status(500).json({ error: (e as Error).message }); 
+    }
   });
 
   app.get('/api/reports/detailed-sales', async (req, res) => {

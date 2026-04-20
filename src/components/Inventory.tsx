@@ -30,6 +30,8 @@ export default function Inventory() {
   const [selectedPublisher, setSelectedPublisher] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [minStock, setMinStock] = useState<string>('');
+  const [authorNameFilter, setAuthorNameFilter] = useState<string>('');
+  const [publisherNameFilter, setPublisherNameFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export default function Inventory() {
 
   useEffect(() => {
     fetchData();
-  }, [searchQuery, selectedGenre, selectedAuthor, selectedPublisher, selectedYear, minStock, sortBy]);
+  }, [searchQuery, selectedGenre, selectedAuthor, selectedPublisher, selectedYear, minStock, sortBy, authorNameFilter, publisherNameFilter]);
 
   const fetchData = async () => {
     try {
@@ -102,6 +104,8 @@ export default function Inventory() {
       if (selectedYear) queryParams.append('year', selectedYear);
       if (minStock) queryParams.append('min_stock', minStock);
       if (sortBy) queryParams.append('sort', sortBy);
+      if (authorNameFilter) queryParams.append('author_name', authorNameFilter);
+      if (publisherNameFilter) queryParams.append('publisher_name', publisherNameFilter);
 
       const [booksRes, pubRes, authRes, genRes] = await Promise.all([
         fetch(`/api/books?${queryParams.toString()}`),
@@ -323,6 +327,26 @@ export default function Inventory() {
           >
             <div className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                <div className="space-y-2 col-span-1 md:col-span-2">
+                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Поиск автора</label>
+                  <input 
+                    type="text"
+                    placeholder="Имя автора..."
+                    value={authorNameFilter}
+                    onChange={(e) => setAuthorNameFilter(e.target.value)}
+                    className="w-full bg-[#F9FAFB] border border-[#F1F1F4] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-2 col-span-1 md:col-span-2">
+                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Поиск изд-ва</label>
+                  <input 
+                    type="text"
+                    placeholder="Название..."
+                    value={publisherNameFilter}
+                    onChange={(e) => setPublisherNameFilter(e.target.value)}
+                    className="w-full bg-[#F9FAFB] border border-[#F1F1F4] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Жанр</label>
                   <select 
@@ -337,7 +361,7 @@ export default function Inventory() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Автор</label>
+                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Автор (ID)</label>
                   <select 
                     value={selectedAuthor}
                     onChange={(e) => setSelectedAuthor(e.target.value)}
@@ -350,7 +374,7 @@ export default function Inventory() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Издательство</label>
+                  <label className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Издательство (ID)</label>
                   <select 
                     value={selectedPublisher}
                     onChange={(e) => setSelectedPublisher(e.target.value)}

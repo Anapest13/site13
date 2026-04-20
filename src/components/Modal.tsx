@@ -56,13 +56,15 @@ export default function Modal({
                 {children}
               </div>
               <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-6 py-2.5 text-sm font-bold text-[#6B7280] hover:bg-[#F3F4F6] rounded-xl transition-all"
-                >
-                  {cancelLabel}
-                </button>
+                {type !== 'info' && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-6 py-2.5 text-sm font-bold text-[#6B7280] hover:bg-[#F3F4F6] rounded-xl transition-all"
+                  >
+                    {cancelLabel}
+                  </button>
+                )}
                 {type === 'confirm' && onConfirm && (
                   <button
                     type="button"

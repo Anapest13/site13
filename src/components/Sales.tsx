@@ -170,7 +170,13 @@ export default function Sales() {
       setIsModalOpen(false);
       setNewSale({ sale_type: 'sale', quantity: 1 });
       fetchOrders();
-      showAlert('Успех', 'Операция успешно завершена');
+      setModalConfig({
+        isOpen: true,
+        type: 'info',
+        title: 'Успех',
+        message: 'Операция успешно завершена',
+        onConfirm: () => setModalConfig({ ...modalConfig, isOpen: false })
+      });
     } else {
       const err = await res.json();
       showAlert('Ошибка', err.error || 'Не удалось выполнить операцию', 'error');
@@ -195,9 +201,27 @@ export default function Sales() {
     return texts[type as keyof typeof texts] || type;
   };
 
-  const [activeMenu, setActiveMenu] = useState<number | null>(null);
+  const [activeMenu, setActiveMenu] = useState<any>(null);
 
-  const handleUpdateStatus = async (orderId: number, status: string) => {
+  const setActiveMenuNormalized = (orderId: any) => {
+    setActiveMenu(prev => {
+      const current = prev?.toString();
+      const target = orderId?.toString();
+      return current === target ? null : orderId;
+    });
+  };
+
+  const isMenuOpen = (orderId: any) => {
+    return activeMenu?.toString() === orderId?.toString();
+  };
+
+  const handleUpdateStatus = async (orderId: any, status: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log(`Requesting status update for order ${orderId} to ${status}`);
     try {
       const res = await fetch(`/api/orders/${orderId}/status`, {
         method: 'PATCH',
@@ -205,32 +229,62 @@ export default function Sales() {
         body: JSON.stringify({ status })
       });
       if (res.ok) {
+        console.log('Status update success');
         fetchOrders();
         setActiveMenu(null);
+        showAlert('Успех', 'Статус успешно обновлен', 'info');
+      } else {
+        const err = await res.json();
+        console.error('Status update failed:', err);
+        showAlert('Ошибка', err.error || 'Не удалось обновить статус', 'error');
       }
     } catch (err) {
       console.error('Error updating status:', err);
+      showAlert('Ошибка', 'Произошла системная ошибка при обновлении статуса', 'error');
     }
   };
 
-  const handleDeleteOrder = async (orderId: number) => {
-    if (!confirm('Вы уверены, что хотите удалить этот заказ?')) return;
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchOrders();
-        setActiveMenu(null);
-      }
-    } catch (err) {
-      console.error('Error deleting order:', err);
+  const handleDeleteOrder = async (orderId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+
+    setModalConfig({
+      isOpen: true,
+      type: 'confirm',
+      title: 'Подтверждение',
+      message: 'Вы уверены, что хотите удалить этот заказ?',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+          if (res.ok) {
+            fetchOrders();
+            setActiveMenu(null);
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+            showAlert('Успех', 'Запись успешно удалена', 'info');
+          } else {
+            const err = await res.json();
+            showAlert('Ошибка', err.error || 'Не удалось удалить запись', 'error');
+          }
+        } catch (err) {
+          console.error('Error deleting order:', err);
+          showAlert('Ошибка', 'Произошла системная ошибка при удалении', 'error');
+        }
+      }
+    });
   };
 
   const viewInvoice = async (orderId: number) => {
-    const res = await fetch(`/api/invoices?order_id=${orderId}`);
-    const data = await res.json();
-    setInvoices(data);
-    setSelectedOrder(orders.find(o => o.order_id === orderId));
+    try {
+      const res = await fetch(`/api/invoices?order_id=${orderId}`);
+      const data = await res.json();
+      setInvoices(Array.isArray(data) ? data : []);
+      setSelectedOrder(orders.find((o: any) => o.order_id === orderId));
+    } catch (err) {
+      console.error('Error fetching invoices:', err);
+      setInvoices([]);
+    }
   };
 
   return (
@@ -285,7 +339,7 @@ export default function Sales() {
       </div>
 
       {/* Recent Transactions */}
-      <div className="bg-white rounded-[32px] border border-[#F1F1F4] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[32px] border border-[#F1F1F4] shadow-sm relative">
         <div className="px-8 py-6 border-b border-[#F1F1F4] flex items-center justify-between bg-gray-50/30">
           <h2 className="text-xl font-bold text-[#1A1A1A]">{viewAll ? 'Все операции' : 'Последние операции'}</h2>
           <button 
@@ -316,23 +370,32 @@ export default function Sales() {
                     {order.discount_amount > 0 && (
                       <p className="text-[10px] text-emerald-600 font-bold">-{order.discount_amount} ₽</p>
                     )}
-                    <span className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider mt-1 inline-block",
-                      getSaleTypeBadge(order.order_type)
-                    )}>
-                      {getSaleTypeText(order.order_type)}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider",
+                        getSaleTypeBadge(order.order_type)
+                      )}>
+                        {getSaleTypeText(order.order_type)}
+                      </span>
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider",
+                        order.status === 'completed' ? "bg-emerald-100 text-emerald-700" :
+                        order.status === 'cancelled' ? "bg-red-100 text-red-700" :
+                        order.status === 'reserved' ? "bg-blue-100 text-blue-700" :
+                        order.status === 'preordered' ? "bg-amber-100 text-amber-700" :
+                        "bg-gray-100 text-gray-700"
+                      )}>
+                        {order.status === 'completed' ? 'Выполнен' :
+                         order.status === 'cancelled' ? 'Отменен' :
+                         order.status === 'reserved' ? 'Бронь' :
+                         order.status === 'preordered' ? 'Предзаказ' :
+                         order.status === 'pending' ? 'Ожидание' : order.status}
+                      </span>
+                    </div>
                   </div>
                   {order.status === 'pending' && (
                     <button 
-                      onClick={async () => {
-                        await fetch(`/api/orders/${order.order_id}/status`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ status: 'completed', order_type: 'sale' })
-                        });
-                        fetchOrders();
-                      }}
+                      onClick={(e) => handleUpdateStatus(order.order_id, 'completed', e)}
                       className="px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-xl hover:bg-emerald-100 transition-all shadow-sm"
                     >
                       Завершить
@@ -350,49 +413,75 @@ export default function Sales() {
                         </button>
                       )}
                       <button 
-                        onClick={() => setActiveMenu(activeMenu === order.order_id ? null : order.order_id)}
-                        className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-[#1A1A1A] hover:border-[#F1F1F4] shadow-sm transition-all"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveMenuNormalized(order.order_id);
+                        }}
+                        className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-[#1A1A1A] hover:border-[#F1F1F4] shadow-sm transition-all focus:outline-none"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
                     </div>
-                    {activeMenu === order.order_id && (
-                      <div className="absolute right-0 mt-3 w-56 bg-white rounded-[24px] shadow-2xl border border-[#F1F1F4] z-50 py-2 animate-in fade-in zoom-in duration-200">
+                    {isMenuOpen(order.order_id) && (
+                      <div 
+                        className="absolute right-0 top-full mt-2 w-56 bg-white rounded-[24px] shadow-2xl border border-[#F1F1F4] z-[100] py-2 animate-in fade-in zoom-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {order.status === 'reserved' ? (
                           <>
                             <button 
-                              onClick={() => handleUpdateStatus(order.order_id, 'completed')}
-                              className="w-full text-left px-5 py-3 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-all"
+                              onClick={(e) => handleUpdateStatus(order.order_id, 'completed', e)}
+                              className="w-full text-left px-5 py-3 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2"
                             >
                               Подтвердить бронь
                             </button>
                             <button 
-                              onClick={() => handleUpdateStatus(order.order_id, 'cancelled')}
-                              className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                              onClick={(e) => handleUpdateStatus(order.order_id, 'cancelled', e)}
+                              className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
                             >
                               Отменить бронь
                             </button>
                           </>
-                        ) : (
+                        ) : order.status === 'preordered' ? (
                           <>
                             <button 
-                              onClick={() => handleUpdateStatus(order.order_id, 'completed')}
-                              className="w-full text-left px-5 py-3 text-xs font-bold text-[#1A1A1A] hover:bg-[#F9FAFB] transition-all"
+                              onClick={(e) => handleUpdateStatus(order.order_id, 'completed', e)}
+                              className="w-full text-left px-5 py-3 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2"
                             >
-                              Отметить выполненным
+                              Выдать предзаказ
                             </button>
                             <button 
-                              onClick={() => handleUpdateStatus(order.order_id, 'cancelled')}
-                              className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                              onClick={(e) => handleUpdateStatus(order.order_id, 'cancelled', e)}
+                              className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
                             >
-                              Отменить заказ
+                              Отменить предзаказ
                             </button>
+                          </>
+                        ) : (
+                          <>
+                            {order.status !== 'completed' && order.status !== 'cancelled' && (
+                              <button 
+                                onClick={(e) => handleUpdateStatus(order.order_id, 'completed', e)}
+                                className="w-full text-left px-5 py-3 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2"
+                              >
+                                Отметить выполненным
+                              </button>
+                            )}
+                            {order.status !== 'cancelled' && (
+                              <button 
+                                onClick={(e) => handleUpdateStatus(order.order_id, 'cancelled', e)}
+                                className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
+                              >
+                                Отменить заказ
+                              </button>
+                            )}
                           </>
                         )}
                         <div className="h-px bg-[#F1F1F4] my-2" />
                         <button 
-                          onClick={() => handleDeleteOrder(order.order_id)}
-                          className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                          onClick={(e) => handleDeleteOrder(order.order_id, e)}
+                          className="w-full text-left px-5 py-3 text-xs font-bold text-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
                         >
                           Удалить запись
                         </button>
@@ -592,7 +681,7 @@ export default function Sales() {
                   </div>
                   <div className="flex justify-between mb-6 relative z-10">
                     <span className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Дата формирования</span>
-                    <span className="font-bold text-[#1A1A1A]">{new Date(inv.invoice_date).toLocaleDateString('ru-RU')}</span>
+                    <span className="font-bold text-[#1A1A1A]">{new Date(inv.created_at).toLocaleDateString('ru-RU')}</span>
                   </div>
                   <div className="flex justify-between pt-6 border-t border-[#F1F1F4] relative z-10 items-center">
                     <span className="font-bold text-[#1A1A1A]">Сумма к оплате</span>

@@ -27,9 +27,13 @@ export default function Dashboard() {
   const [topCategories, setTopCategories] = useState<{label: string, value: number, color: string}[]>([]);
   const [stats, setStats] = useState({
     totalRevenue: 0,
+    totalRevenueTrend: 0,
     totalSales: 0,
+    totalSalesTrend: 0,
     activeClients: 0,
-    inventoryCount: 0
+    activeClientsTrend: 0,
+    inventoryCount: 0,
+    inventoryTrend: 0
   });
 
   useEffect(() => {
@@ -76,15 +80,67 @@ export default function Dashboard() {
   useEffect(() => {
     if (Array.isArray(salesData) && salesData.length > 0) {
       const totalRevenue = salesData.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
-      setStats(prev => ({ ...prev, totalRevenue, totalSales: salesData.length }));
+      
+      // Calculate trend based on last two data points
+      let revenueTrend = 0;
+      let salesTrend = 0;
+      if (salesData.length >= 2) {
+        const last = Number(salesData[salesData.length - 1].total) || 0;
+        const prev = Number(salesData[salesData.length - 2].total) || 0;
+        if (prev > 0) {
+          revenueTrend = ((last - prev) / prev) * 100;
+        } else if (last > 0) {
+          revenueTrend = 100;
+        }
+      }
+
+      setStats(prev => ({ 
+        ...prev, 
+        totalRevenue, 
+        totalRevenueTrend: revenueTrend,
+        totalSales: salesData.length,
+        totalSalesTrend: 5.2 // Mocking sales count trend for now as we don't have separate count per day easily
+      }));
     }
   }, [salesData]);
 
   const cards = [
-    { label: 'Общая выручка', value: `${stats.totalRevenue.toLocaleString()} ₽`, icon: DollarSign, trend: '+12.5%', trendUp: true, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { label: 'Всего продаж', value: (stats.totalSales || 0).toString(), icon: TrendingUp, trend: '+8.2%', trendUp: true, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Активные клиенты', value: (stats.activeClients || 0).toString(), icon: Users, trend: '+2.4%', trendUp: true, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'Книг в наличии', value: (stats.inventoryCount || 0).toString(), icon: BookOpen, trend: '-1.2%', trendUp: false, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { 
+      label: 'Общая выручка', 
+      value: `${stats.totalRevenue.toLocaleString()} ₽`, 
+      icon: DollarSign, 
+      trend: `${stats.totalRevenueTrend >= 0 ? '+' : ''}${stats.totalRevenueTrend.toFixed(1)}%`, 
+      trendUp: stats.totalRevenueTrend >= 0, 
+      color: 'text-indigo-600', 
+      bg: 'bg-indigo-50' 
+    },
+    { 
+      label: 'Всего продаж', 
+      value: (stats.totalSales || 0).toString(), 
+      icon: TrendingUp, 
+      trend: `${stats.totalSalesTrend >= 0 ? '+' : ''}${stats.totalSalesTrend.toFixed(1)}%`, 
+      trendUp: stats.totalSalesTrend >= 0, 
+      color: 'text-blue-600', 
+      bg: 'bg-blue-50' 
+    },
+    { 
+      label: 'Активные клиенты', 
+      value: (stats.activeClients || 0).toString(), 
+      icon: Users, 
+      trend: '+2.4%', 
+      trendUp: true, 
+      color: 'text-violet-600', 
+      bg: 'bg-violet-50' 
+    },
+    { 
+      label: 'Книг в наличии', 
+      value: (stats.inventoryCount || 0).toString(), 
+      icon: BookOpen, 
+      trend: '-1.2%', 
+      trendUp: false, 
+      color: 'text-amber-600', 
+      bg: 'bg-amber-50' 
+    },
   ];
 
   return (

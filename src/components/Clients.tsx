@@ -146,8 +146,13 @@ export default function Clients() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).map((client) => (
-          <div key={client.id} className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+        {clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).length === 0 ? (
+          <div className="col-span-full py-20 text-center bg-white rounded-[32px] border border-[#F1F1F4]">
+            <p className="text-[#6B7280] text-lg">Клиенты не найдены</p>
+          </div>
+        ) : (
+          clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).map((client) => (
+            <div key={client.id} className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
             
             <div className="relative">
@@ -206,7 +211,7 @@ export default function Clients() {
               </div>
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {historyClient && (
@@ -312,10 +317,40 @@ export default function Clients() {
                   <input 
                     required
                     value={editingClient?.phone || ''}
-                    onChange={(e) => setEditingClient({ ...editingClient, phone: e.target.value })}
+                    maxLength={12}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (val.length > 0 && !val.startsWith('+7')) {
+                        if (val.startsWith('7') || val.startsWith('8')) val = '+7' + val.substring(1);
+                        else if (!val.startsWith('+')) val = '+7' + val;
+                        else val = '+7';
+                      }
+                      if (val.length > 2) {
+                        const numbers = val.substring(2).replace(/\D/g, '');
+                        val = '+7' + numbers;
+                      }
+                      if (val.length <= 12) {
+                        setEditingClient({ ...editingClient, phone: val });
+                      }
+                    }}
+                    onFocus={() => {
+                      if (!editingClient?.phone) setEditingClient({ ...editingClient, phone: '+7' });
+                    }}
                     className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
                   />
                 </div>
+                {!editingClient?.id && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Пароль</label>
+                    <input 
+                      type="password"
+                      required
+                      value={editingClient?.password || ''}
+                      onChange={(e) => setEditingClient({ ...editingClient, password: e.target.value })}
+                      className="w-full px-5 py-3.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none transition-all font-medium"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-4 pt-4">
                 <button 

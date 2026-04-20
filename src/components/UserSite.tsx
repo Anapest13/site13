@@ -30,12 +30,24 @@ function cn(...inputs: ClassValue[]) {
 
 type UserView = 'home' | 'catalog' | 'cart' | 'profile' | 'about' | 'promotions';
 
+const getImageUrl = (url: string | null, id?: number | string) => {
+  if (!url) return `https://picsum.photos/seed/${id || 'book'}/400/600`;
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/')) return url;
+  if (url.startsWith('images/')) return `/${url}`;
+  return `/images/${url}`;
+};
+
 export default function UserSite() {
   const [view, setView] = useState<UserView>('home');
+  const [filterType, setFilterType] = useState<'all' | 'bestsellers' | 'newest'>('all');
   const [books, setBooks] = useState<Book[]>([]);
   const [genres, setGenres] = useState<Genre[]>([]);
   const [cart, setCart] = useState<{ book: Book, quantity: number, type: 'sale' | 'booking' | 'preorder' }[]>([]);
   const [search, setSearch] = useState('');
+  const [authorNameSearch, setAuthorNameSearch] = useState('');
+  const [publisherNameSearch, setPublisherNameSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -91,6 +103,20 @@ export default function UserSite() {
         .catch(err => console.error('Error fetching author books:', err));
     }
   }, [selectedAuthor]);
+
+  useEffect(() => {
+    // Reset other filters when switching views, except when specifically navigating to catalog with a filterType
+    if (view !== 'catalog') {
+      setSelectedGenre(null);
+      setSelectedAuthor(null);
+      setSelectedPublisher(null);
+      setSelectedYear(null);
+      setSortOrder(null);
+      setMinStock(null);
+      setFilterType('all');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view, filterType]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -152,13 +178,27 @@ export default function UserSite() {
     const matchesSearch = b.title.toLowerCase().includes(search.toLowerCase()) || 
                          (b.authors_list?.[0]?.name || '').toLowerCase().includes(search.toLowerCase()) ||
                          (b.publisher_name || '').toLowerCase().includes(search.toLowerCase());
+    
+    const matchesAuthorName = authorNameSearch ? (b.authors_list || []).some((a: any) => a.name.toLowerCase().includes(authorNameSearch.toLowerCase())) : true;
+    const matchesPublisherName = publisherNameSearch ? (b.publisher_name || '').toLowerCase().includes(publisherNameSearch.toLowerCase()) : true;
+
     const matchesGenre = selectedGenre ? b.genre_ids?.includes(selectedGenre) : true;
     const matchesAuthor = selectedAuthor ? b.authors_list?.some((a: any) => a.author_id === selectedAuthor.author_id) : true;
     const matchesPublisher = selectedPublisher ? b.publisher_id === selectedPublisher.publisher_id : true;
     const matchesYear = selectedYear ? b.publication_year === selectedYear : true;
     const matchesStock = minStock !== null ? b.quantity_in_stock >= minStock : true;
     
-    return matchesSearch && matchesGenre && matchesAuthor && matchesPublisher && matchesYear && matchesStock;
+    // Additional filters for novelty/popularity
+    if (filterType === 'newest') {
+      const currentYear = new Date().getFullYear();
+      if ((b.publication_year || 0) < currentYear - 1) return false;
+    }
+    // For bestsellers, we use the sales_count field
+    if (filterType === 'bestsellers') {
+      if ((b.sales_count || 0) < 1) return false; // Show books with at least 1 sale as bestsellers (can be adjusted)
+    }
+
+    return matchesSearch && matchesAuthorName && matchesPublisherName && matchesGenre && matchesAuthor && matchesPublisher && matchesYear && matchesStock;
   }).sort((a, b) => {
     if (sortOrder === 'price_asc') return a.price - b.price;
     if (sortOrder === 'price_desc') return b.price - a.price;
@@ -183,15 +223,6 @@ export default function UserSite() {
     }
   };
 
-  const getImageUrl = (url: string) => {
-    if (!url) return 'https://picsum.photos/seed/book/400/600';
-    // If it's already a relative path or a full URL, return it
-    // But the user wants relative paths in the project.
-    // Let's assume images are in /images/books/
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/')) return url;
-    return `/images/books/${url}`;
-  };
   const handleCheckout = async () => {
     if (!user) {
       alert('Пожалуйста, войдите в аккаунт для оформления заказа');
@@ -255,7 +286,21 @@ export default function UserSite() {
                 </div>
               </button>
               <div className="hidden md:flex items-center gap-6">
-                <button onClick={() => setView('catalog')} className={cn("text-sm font-medium transition-colors hover:text-black", view === 'catalog' ? "text-black" : "text-[#6B7280]")}>Каталог</button>
+                <button 
+                  onClick={() => {
+                    setView('catalog');
+                    setFilterType('all');
+                    setSelectedGenre(null);
+                    setSelectedAuthor(null);
+                    setSelectedPublisher(null);
+                    setSelectedYear(null);
+                    setSortOrder(null);
+                    setMinStock(null);
+                  }} 
+                  className={cn("text-sm font-medium transition-colors hover:text-black", view === 'catalog' ? "text-black" : "text-[#6B7280]")}
+                >
+                  Каталог
+                </button>
                 <button onClick={() => setView('promotions')} className={cn("text-sm font-medium transition-colors hover:text-black", view === 'promotions' ? "text-black" : "text-[#6B7280]")}>Акции</button>
                 <button onClick={() => setView('about')} className={cn("text-sm font-medium transition-colors hover:text-black", view === 'about' ? "text-black" : "text-[#6B7280]")}>О нас</button>
               </div>
@@ -336,7 +381,10 @@ export default function UserSite() {
                   </p>
                   <div className="flex flex-wrap gap-4">
                     <button 
-                      onClick={() => setView('catalog')} 
+                      onClick={() => {
+                        setView('catalog');
+                        setFilterType('all');
+                      }} 
                       className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold hover:bg-indigo-700 hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2"
                     >
                       В каталог <ArrowRight className="w-5 h-5" />
@@ -372,7 +420,7 @@ export default function UserSite() {
               <section>
                 <div className="flex items-center justify-between mb-10">
                   <h2 className="text-3xl font-bold tracking-tight">Популярные жанры</h2>
-                  <button onClick={() => setView('catalog')} className="text-indigo-600 font-bold flex items-center gap-1 hover:gap-2 transition-all">
+                  <button onClick={() => { setView('catalog'); setFilterType('all'); }} className="text-indigo-600 font-bold flex items-center gap-1 hover:gap-2 transition-all">
                     Все жанры <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -388,6 +436,7 @@ export default function UserSite() {
                         onClick={() => {
                           setSelectedGenre(genre.genre_id);
                           setView('catalog');
+                          setFilterType('all');
                         }}
                         className={cn(
                           "group relative aspect-square rounded-[32px] overflow-hidden transition-all hover:-translate-y-2 hover:shadow-2xl",
@@ -409,7 +458,7 @@ export default function UserSite() {
               <section>
                 <div className="flex items-center justify-between mb-10">
                   <h2 className="text-3xl font-bold tracking-tight">Новинки</h2>
-                  <button onClick={() => setView('catalog')} className="text-indigo-600 font-bold flex items-center gap-1 hover:gap-2 transition-all">
+                  <button onClick={() => { setView('catalog'); setFilterType('all'); }} className="text-indigo-600 font-bold flex items-center gap-1 hover:gap-2 transition-all">
                     Смотреть все <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -436,7 +485,7 @@ export default function UserSite() {
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Готовы начать свое следующее приключение?</h2>
                   <p className="text-lg text-indigo-100">Присоединяйтесь к тысячам читателей и откройте для себя лучшие книги со всего мира.</p>
                   <button 
-                    onClick={() => setView('catalog')}
+                    onClick={() => { setView('catalog'); setFilterType('all'); }}
                     className="bg-white text-indigo-600 px-12 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-transform shadow-2xl"
                   >
                     Перейти в каталог
@@ -471,6 +520,34 @@ export default function UserSite() {
                   <option value="price_desc">Цена: по убыванию</option>
                   <option value="newest">Сначала новые</option>
                 </select>
+              </div>
+
+              <div>
+                <h3 className="font-bold mb-4 flex items-center gap-2">
+                  <UserIcon className="w-4 h-4" />
+                  Поиск автора
+                </h3>
+                <input 
+                  type="text" 
+                  placeholder="Имя автора"
+                  value={authorNameSearch}
+                  onChange={(e) => setAuthorNameSearch(e.target.value)}
+                  className="w-full bg-[#F3F4F6] border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#1A1A1A]/10 outline-none"
+                />
+              </div>
+
+              <div>
+                <h3 className="font-bold mb-4 flex items-center gap-2">
+                  <Truck className="w-4 h-4" />
+                  Поиск изд-ва
+                </h3>
+                <input 
+                  type="text" 
+                  placeholder="Название изд-ва"
+                  value={publisherNameSearch}
+                  onChange={(e) => setPublisherNameSearch(e.target.value)}
+                  className="w-full bg-[#F3F4F6] border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#1A1A1A]/10 outline-none"
+                />
               </div>
 
               <div>
@@ -564,6 +641,8 @@ export default function UserSite() {
                   setSelectedYear(null);
                   setSortOrder(null);
                   setMinStock(null);
+                  setAuthorNameSearch('');
+                  setPublisherNameSearch('');
                 }}
                 className="w-full py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"
               >
@@ -606,7 +685,7 @@ export default function UserSite() {
                 <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-[#D1D5DB]" />
                 <h3 className="text-xl font-bold mb-2">Ваша корзина пуста</h3>
                 <p className="text-[#6B7280] mb-8">Самое время добавить в неё что-нибудь интересное!</p>
-                <button onClick={() => setView('catalog')} className="bg-[#1A1A1A] text-white px-8 py-3 rounded-full font-bold hover:shadow-lg transition-all">
+                <button onClick={() => { setView('catalog'); setFilterType('all'); }} className="bg-[#1A1A1A] text-white px-8 py-3 rounded-full font-bold hover:shadow-lg transition-all">
                   Перейти в каталог
                 </button>
               </div>
@@ -617,7 +696,7 @@ export default function UserSite() {
                     <div key={i} className="flex gap-4 p-4 bg-white border border-[#E5E7EB] rounded-2xl">
                       <div className="w-24 h-32 bg-[#F3F4F6] rounded-xl overflow-hidden shrink-0">
                         <img 
-                          src={item.book.cover_image_url || `https://picsum.photos/seed/${item.book.book_id}/200/300`} 
+                          src={getImageUrl(item.book.cover_image_url)} 
                           alt={item.book.title}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
@@ -748,15 +827,20 @@ export default function UserSite() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="max-w-4xl mx-auto"
             >
-            {!user ? (
-              <div className="text-center py-20">
-                <h2 className="text-3xl font-bold mb-4">Личный кабинет</h2>
-                <p className="text-[#6B7280] mb-8">Войдите, чтобы просматривать свои заказы и управлять профилем.</p>
-                <button onClick={() => window.location.reload()} className="bg-[#1A1A1A] text-white px-8 py-3 rounded-full font-bold hover:shadow-lg transition-all">
-                  Войти в аккаунт
-                </button>
-              </div>
-            ) : (
+              {!user ? (
+                <div className="text-center py-20">
+                  <h2 className="text-3xl font-bold mb-4">Личный кабинет</h2>
+                  <p className="text-[#6B7280] mb-8">Войдите, чтобы просматривать свои заказы и управлять профилем.</p>
+                  <div className="flex justify-center gap-4">
+                    <button 
+                      onClick={() => window.dispatchEvent(new CustomEvent('auth-request'))} 
+                      className="bg-[#1A1A1A] text-white px-8 py-3 rounded-full font-bold hover:shadow-lg transition-all"
+                    >
+                      Войти в аккаунт
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-8">
                 <div className="flex items-center justify-between p-8 bg-[#F9FAFB] rounded-3xl">
                   <div className="flex items-center gap-6">
@@ -921,9 +1005,9 @@ export default function UserSite() {
               <h4 className="text-lg font-bold mb-8">Каталог</h4>
               <ul className="space-y-4">
                 {[
-                  { label: 'Все книги', action: () => setView('catalog') },
-                  { label: 'Новинки', action: () => setView('catalog') },
-                  { label: 'Бестселлеры', action: () => setView('catalog') },
+                  { label: 'Все книги', action: () => { setView('catalog'); setFilterType('all'); } },
+                  { label: 'Новинки', action: () => { setView('catalog'); setFilterType('newest'); } },
+                  { label: 'Бестселлеры', action: () => { setView('catalog'); setFilterType('bestsellers'); } },
                   { label: 'Акции', action: () => setView('promotions') },
                 ].map((item, i) => (
                   <li key={i}>
@@ -1037,19 +1121,11 @@ interface BookCardProps {
 const BookCard: React.FC<BookCardProps> = ({ book, onAddToCart, onPublisherClick, onAuthorClick }) => {
   const isOutOfStock = book.quantity_in_stock === 0;
 
-  const getImageUrl = (url: string | null) => {
-    if (!url) return `https://picsum.photos/seed/${book.book_id}/400/600`;
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/')) return url;
-    if (url.startsWith('images/')) return `/${url}`;
-    return `/images/books/${url}`;
-  };
-
   return (
     <div className="group bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden hover:shadow-xl transition-all h-full flex flex-col">
       <div className="aspect-[3/4] bg-[#F3F4F6] relative overflow-hidden">
         <img 
-          src={getImageUrl(book.cover_image_url)} 
+          src={getImageUrl(book.cover_image_url, book.book_id)} 
           alt={book.title}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           referrerPolicy="no-referrer"
@@ -1158,7 +1234,7 @@ function PurchasedBooks({ customerId }: { customerId: number }) {
         <div key={book.book_id} className="flex gap-4 p-4 bg-white border border-[#E5E7EB] rounded-2xl">
           <div className="w-16 h-24 bg-[#F3F4F6] rounded-lg overflow-hidden shrink-0">
             <img 
-              src={book.cover_image_url || `https://picsum.photos/seed/${book.book_id}/200/300`} 
+              src={getImageUrl(book.cover_image_url)} 
               alt={book.title}
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
@@ -1202,12 +1278,10 @@ function AboutSection() {
         <div className="relative">
           <div className="aspect-[4/5] rounded-[48px] overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-700">
             <img 
-              src="/images/about.jpg" 
+              src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=2000" 
               alt="Our Bookstore"
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.src = "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&q=80&w=1000";
-              }}
+              referrerPolicy="no-referrer"
             />
           </div>
           <div className="absolute -bottom-10 -left-10 bg-white p-8 rounded-3xl shadow-xl max-w-[240px] -rotate-3">
@@ -1348,10 +1422,15 @@ function OrdersList({ customerId }: { customerId: number }) {
   }, [customerId]);
 
   const viewInvoice = async (orderId: number) => {
-    const res = await fetch(`/api/invoices?order_id=${orderId}`);
-    const data = await res.json();
-    setInvoices(data);
-    setSelectedOrder(orders.find(o => o.order_id === orderId));
+    try {
+      const res = await fetch(`/api/invoices?order_id=${orderId}`);
+      const data = await res.json();
+      setInvoices(Array.isArray(data) ? data : []);
+      setSelectedOrder(orders.find(o => o.order_id === orderId));
+    } catch (err) {
+      console.error('Error fetching invoices:', err);
+      setInvoices([]);
+    }
   };
 
   if (orders.length === 0) {
@@ -1388,9 +1467,11 @@ function OrdersList({ customerId }: { customerId: number }) {
               <span className={cn(
                 "text-[10px] font-bold uppercase",
                 order.status === 'completed' ? "text-emerald-600" :
+                order.status === 'cancelled' ? "text-red-600" :
                 order.status === 'pending' ? "text-amber-600" : "text-blue-600"
               )}>
                 {order.status === 'completed' ? 'Выполнен' : 
+                 order.status === 'cancelled' ? 'Отменен' :
                  order.status === 'pending' ? 'В обработке' : order.status}
               </span>
             </div>
@@ -1423,7 +1504,7 @@ function OrdersList({ customerId }: { customerId: number }) {
                   </div>
                   <div className="flex justify-between mb-4">
                     <span className="text-[#6B7280]">Дата:</span>
-                    <span className="font-bold">{new Date(inv.invoice_date).toLocaleDateString('ru-RU')}</span>
+                    <span className="font-bold">{new Date(inv.created_at).toLocaleDateString('ru-RU')}</span>
                   </div>
                   <div className="flex justify-between pt-4 border-t border-[#E5E7EB]">
                     <span className="font-bold">Сумма:</span>

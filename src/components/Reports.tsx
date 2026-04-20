@@ -336,7 +336,10 @@ export default function Reports() {
                 tickFormatter={(value) => {
                   if (!value) return '';
                   if (period === 'month') {
-                    const [year, month] = value.split('-');
+                    if (typeof value !== 'string') return value || '';
+                    const parts = value.split('-');
+                    if (parts.length < 2) return value;
+                    const [year, month] = parts;
                     const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
                     return month ? `${months[parseInt(month) - 1]} ${year}` : value;
                   }
