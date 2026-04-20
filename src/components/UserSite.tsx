@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, Genre } from '../types';
+import Modal from './Modal';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -57,6 +58,29 @@ export default function UserSite() {
   const [selectedAuthor, setSelectedAuthor] = useState<any>(null);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  // Modal state
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    type: 'info' | 'confirm' | 'error';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (title: string, message: string, type: 'info' | 'error' = 'info') => {
+    setModalConfig({
+      isOpen: true,
+      type,
+      title,
+      message,
+    });
+  };
   const [sortOrder, setSortOrder] = useState<'price_asc' | 'price_desc' | 'newest' | null>(null);
   const [minStock, setMinStock] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -1232,6 +1256,16 @@ export default function UserSite() {
           </motion.div>
         </div>
       )}
+
+      <Modal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        onConfirm={modalConfig.onConfirm}
+      >
+        <p>{modalConfig.message}</p>
+      </Modal>
     </div>
   );
 }
