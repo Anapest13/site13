@@ -683,6 +683,20 @@ export default function Sales() {
                     <span className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">Дата формирования</span>
                     <span className="font-bold text-[#1A1A1A]">{new Date(inv.created_at).toLocaleDateString('ru-RU')}</span>
                   </div>
+                  {inv.items && inv.items.length > 0 && (
+                    <div className="mb-6 space-y-3 relative z-10">
+                      <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Список товаров</p>
+                      {inv.items.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-sm py-2 border-b border-gray-100/50 last:border-0 hover:bg-white/50 rounded-lg px-2 -mx-2 transition-colors">
+                          <span className="font-bold text-[#1A1A1A] max-w-[70%] line-clamp-1">{item.title}</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-[#6B7280] font-medium">x{item.quantity}</span>
+                            <span className="text-indigo-600 font-bold">{item.unit_price} ₽</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-between pt-6 border-t border-[#F1F1F4] relative z-10 items-center">
                     <span className="font-bold text-[#1A1A1A]">Сумма к оплате</span>
                     <span className="text-3xl font-bold text-indigo-600 tracking-tight">{inv.total_amount} ₽</span>

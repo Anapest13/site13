@@ -55,6 +55,7 @@ export default function UserSite() {
   const [appliedPromotion, setAppliedPromotion] = useState<any>(null);
   const [selectedPublisher, setSelectedPublisher] = useState<any>(null);
   const [selectedAuthor, setSelectedAuthor] = useState<any>(null);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [sortOrder, setSortOrder] = useState<'price_asc' | 'price_desc' | 'newest' | null>(null);
   const [minStock, setMinStock] = useState<number | null>(null);
@@ -136,9 +137,21 @@ export default function UserSite() {
       }
     };
     fetchBooksAndGenres();
+    (window as any).setSelectedBookGlobal = setSelectedBook;
+    return () => { (window as any).setSelectedBookGlobal = null; };
   }, []);
 
   const addToCart = (book: Book, type: 'sale' | 'booking' | 'preorder' = 'sale') => {
+    // Stock validation
+    if (type !== 'preorder') {
+       const existingInCart = cart.find(item => item.book.book_id === book.book_id && item.type === type);
+       const currentQty = existingInCart ? existingInCart.quantity : 0;
+       if (currentQty + 1 > book.quantity_in_stock) {
+         showAlert('Ошибка', `На складе всего ${book.quantity_in_stock} шт. этой книги.`, 'error');
+         return;
+       }
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.book.book_id === book.book_id && item.type === type);
       if (existing) {
@@ -160,6 +173,15 @@ export default function UserSite() {
     setCart(prev => prev.map(item => {
       if (item.book.book_id === bookId && item.type === type) {
         const newQty = Math.max(1, item.quantity + delta);
+        
+        // Stock check on increase
+        if (delta > 0 && item.type !== 'preorder') {
+           if (newQty > item.book.quantity_in_stock) {
+             showAlert('Ошибка', `На складе всего ${item.book.quantity_in_stock} шт.`, 'error');
+             return item;
+           }
+        }
+        
         return { ...item, quantity: newQty };
       }
       return item;
@@ -1107,6 +1129,109 @@ export default function UserSite() {
           </div>
         </div>
       )}
+
+      {/* Book Detail Modal */}
+      {selectedBook && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[250] flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setSelectedBook(null)}
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[48px] w-full max-w-4xl overflow-hidden shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedBook(null)}
+              className="absolute top-6 right-6 p-3 bg-white/80 backdrop-blur-xl border border-gray-100 rounded-2xl shadow-xl hover:bg-gray-50 transition-all z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="flex flex-col md:flex-row h-full">
+              <div className="md:w-2/5 aspect-[3/4] md:aspect-auto bg-gray-100 relative group overflow-hidden">
+                <img 
+                  src={getImageUrl(selectedBook.cover_image_url, selectedBook.book_id)} 
+                  alt={selectedBook.title}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+              </div>
+              <div className="md:w-3/5 p-8 md:p-12 overflow-y-auto max-h-[90vh]">
+                <div className="space-y-8">
+                  <div>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {selectedBook?.genres_list?.map(g => (
+                        <span key={g.genre_id} className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-full uppercase tracking-widest">{g.name}</span>
+                      ))}
+                    </div>
+                    <h2 className="text-4xl font-bold tracking-tight text-[#1A1A1A] leading-[1.1] mb-2">{selectedBook.title}</h2>
+                    <p className="text-xl text-indigo-600 font-medium">
+                      {selectedBook.authors_list?.map(a => a.name).join(', ')}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8 border-y border-gray-100 py-8">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1 tracking-widest">Издательство</p>
+                      <p className="font-bold text-[#1A1A1A]">{selectedBook.publisher_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1 tracking-widest">Год издания</p>
+                      <p className="font-bold text-[#1A1A1A]">{selectedBook.publication_year}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1 tracking-widest">ISBN</p>
+                      <p className="font-mono font-bold text-[#1A1A1A]">{selectedBook.isbn}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1 tracking-widest">На складе</p>
+                      <p className={cn("font-bold", selectedBook.quantity_in_stock < 5 ? "text-amber-600" : "text-emerald-600")}>
+                        {selectedBook.quantity_in_stock > 0 ? `${selectedBook.quantity_in_stock} шт.` : 'Нет в наличии'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-[10px] uppercase font-bold text-[#9CA3AF] tracking-widest">Аннотация</p>
+                    <p className="text-[#6B7280] leading-relaxed">
+                      {selectedBook.description || 'Описание отсутствует.'}
+                    </p>
+                  </div>
+
+                  <div className="pt-8 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1 tracking-widest">Стоимость</p>
+                      <p className="text-4xl font-bold text-[#1A1A1A]">{selectedBook.price} ₽</p>
+                    </div>
+                    <div className="flex gap-3">
+                      {selectedBook.quantity_in_stock > 0 ? (
+                        <button 
+                          onClick={() => { addToCart(selectedBook); setSelectedBook(null); }}
+                          className="px-10 py-5 bg-[#1A1A1A] text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-black/20 active:scale-95 transition-all"
+                        >
+                          <ShoppingCart className="w-5 h-5" />
+                          В корзину
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => { addToCart(selectedBook, 'preorder'); setSelectedBook(null); }}
+                          className="px-10 py-5 bg-amber-500 text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-amber-500/20 active:scale-95 transition-all"
+                        >
+                          <Clock className="w-5 h-5" />
+                          Предзаказать
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1122,7 +1247,10 @@ const BookCard: React.FC<BookCardProps> = ({ book, onAddToCart, onPublisherClick
   const isOutOfStock = book.quantity_in_stock === 0;
 
   return (
-    <div className="group bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden hover:shadow-xl transition-all h-full flex flex-col">
+    <div 
+      className="group bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden hover:shadow-xl transition-all h-full flex flex-col cursor-pointer"
+      onClick={() => (window as any).setSelectedBookGlobal?.(book)}
+    >
       <div className="aspect-[3/4] bg-[#F3F4F6] relative overflow-hidden">
         <img 
           src={getImageUrl(book.cover_image_url, book.book_id)} 
@@ -1506,6 +1634,17 @@ function OrdersList({ customerId }: { customerId: number }) {
                     <span className="text-[#6B7280]">Дата:</span>
                     <span className="font-bold">{new Date(inv.created_at).toLocaleDateString('ru-RU')}</span>
                   </div>
+                  {inv.items && inv.items.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                       <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Товары:</p>
+                       {inv.items.map((item: any, idx: number) => (
+                         <div key={idx} className="flex justify-between text-sm py-1 border-b border-gray-100 last:border-0">
+                            <span className="font-medium max-w-[70%]">{item.title}</span>
+                            <span className="text-[#6B7280]">x{item.quantity}</span>
+                         </div>
+                       ))}
+                    </div>
+                  )}
                   <div className="flex justify-between pt-4 border-t border-[#E5E7EB]">
                     <span className="font-bold">Сумма:</span>
                     <span className="text-xl font-bold">{inv.total_amount} ₽</span>
