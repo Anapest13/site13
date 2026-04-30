@@ -406,7 +406,7 @@ export default function Reports() {
                       <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">ДО АКЦИИ</p>
                       <div className="space-y-2">
                         {['sale', 'booking', 'preorder'].map(type => {
-                          const activity = item.activityBefore.find((a: any) => a.order_type === type);
+                          const activity = (item.activityBefore || []).find((a: any) => a.order_type === type);
                           return (
                             <div key={type} className="flex justify-between text-xs">
                               <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
@@ -420,7 +420,7 @@ export default function Reports() {
                       <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">ВО ВРЕМЯ</p>
                       <div className="space-y-2">
                         {['sale', 'booking', 'preorder'].map(type => {
-                          const activity = item.activityDuring.find((a: any) => a.order_type === type);
+                          const activity = (item.activityDuring || []).find((a: any) => a.order_type === type);
                           return (
                             <div key={type} className="flex justify-between text-xs">
                               <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
@@ -481,7 +481,6 @@ export default function Reports() {
                   </td>
                   <td className="px-10 py-6">
                     <div className="flex items-center gap-1.5 font-bold text-[#1A1A1A]">
-                      <DollarSign className="w-4 h-4 text-emerald-500" />
                       {(Number(user.total_spent) || 0).toLocaleString('ru-RU')} ₽
                     </div>
                   </td>
