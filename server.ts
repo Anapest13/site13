@@ -1132,10 +1132,22 @@ async function startServer() {
           [preStart, promo.start_date]
         );
 
+        const activityDuring = await query(
+          'SELECT order_type, COUNT(*) as count FROM orders WHERE order_date BETWEEN ? AND ? GROUP BY order_type',
+          [promo.start_date, promo.end_date]
+        );
+
+        const activityBefore = await query(
+          'SELECT order_type, COUNT(*) as count FROM orders WHERE order_date BETWEEN ? AND ? GROUP BY order_type',
+          [preStart, promo.start_date]
+        );
+
         impactData.push({
           name: promo.name,
           during: during[0].total || 0,
-          before: before[0].total || 0
+          before: before[0].total || 0,
+          activityDuring: activityDuring,
+          activityBefore: activityBefore
         });
       }
       res.json(impactData);

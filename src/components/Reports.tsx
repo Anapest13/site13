@@ -29,6 +29,7 @@ import { saveAs } from 'file-saver';
 
 export default function Reports() {
   const [userActivity, setUserActivity] = useState<UserActivityReport[]>([]);
+  const [promoImpact, setPromoImpact] = useState<any[]>([]);
   const [salesHistory, setSalesHistory] = useState<SalesReport[]>([]);
   const [period, setPeriod] = useState<'day' | 'month' | 'year'>('day');
   const [showFilters, setShowFilters] = useState(false);
@@ -49,6 +50,15 @@ export default function Reports() {
         console.error('Error fetching user activity:', err);
         setUserActivity([]);
       });
+
+    fetch('/api/reports/promotions-impact')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setPromoImpact(data);
+        }
+      })
+      .catch(err => console.error('Error fetching promo impact:', err));
     
     const queryParams = new URLSearchParams({ period });
     if (startDate) queryParams.append('start_date', startDate);
@@ -382,7 +392,52 @@ export default function Reports() {
       </div>
 
       {/* User Activity Table */}
-      <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden">
+      <div className="grid grid-cols-1 gap-10">
+        {promoImpact.length > 0 && (
+          <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden p-10">
+            <h3 className="text-2xl font-bold text-[#1A1A1A] mb-2">Влияние акций на активность</h3>
+            <p className="text-sm text-[#6B7280] mb-8">Сравнение активности пользователей до и во время проведения акций.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {promoImpact.map((item: any, i: number) => (
+                <div key={i} className="p-6 bg-gray-50 rounded-3xl border border-[#F1F1F4] space-y-6">
+                  <h4 className="font-bold text-lg text-indigo-600">{item.name}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">ДО АКЦИИ</p>
+                      <div className="space-y-2">
+                        {['sale', 'booking', 'preorder'].map(type => {
+                          const activity = item.activityBefore.find((a: any) => a.order_type === type);
+                          return (
+                            <div key={type} className="flex justify-between text-xs">
+                              <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
+                              <span className="font-bold">{activity ? activity.count : 0}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">ВО ВРЕМЯ</p>
+                      <div className="space-y-2">
+                        {['sale', 'booking', 'preorder'].map(type => {
+                          const activity = item.activityDuring.find((a: any) => a.order_type === type);
+                          return (
+                            <div key={type} className="flex justify-between text-xs">
+                              <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
+                              <span className="font-bold text-indigo-600">{activity ? activity.count : 0}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden">
         <div className="px-10 py-8 border-b border-[#F1F1F4] bg-gray-50/30">
           <h3 className="text-2xl font-bold text-[#1A1A1A]">Активность пользователей</h3>
           <p className="text-sm text-[#6B7280] mt-1 font-medium">Метрики поведения клиентов и финансовые показатели.</p>
@@ -448,5 +503,6 @@ export default function Reports() {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

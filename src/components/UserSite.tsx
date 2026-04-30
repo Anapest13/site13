@@ -1113,7 +1113,7 @@ export default function UserSite() {
                 </div>
                 <div>
                   <p className="font-bold">Адрес</p>
-                  <p className="text-gray-600">г. Москва, ул. Книжная, д. 24</p>
+                  <p className="text-gray-600">г. Красноярск, пер. Тихий, д. 13/2, цокольный этаж</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -1320,21 +1320,21 @@ const BookCard: React.FC<BookCardProps> = ({ book, onAddToCart, onPublisherClick
             {!isOutOfStock ? (
               <>
                 <button 
-                  onClick={() => onAddToCart(book, 'sale')}
+                  onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'sale'); }}
                   className="p-2 bg-[#1A1A1A] text-white rounded-lg hover:shadow-lg transition-all"
                   title="Купить"
                 >
                   <ShoppingCart className="w-4 h-4" />
                 </button>
                 <button 
-                  onClick={() => onAddToCart(book, 'booking')}
+                  onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'booking'); }}
                   className="p-2 bg-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
                   title="Забронировать"
                 >
                   <Clock className="w-4 h-4" />
                 </button>
                 <button 
-                  onClick={() => onAddToCart(book, 'preorder')}
+                  onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'preorder'); }}
                   className="p-2 bg-amber-600 text-white rounded-lg hover:shadow-lg transition-all"
                   title="Предзаказ"
                 >
@@ -1343,7 +1343,7 @@ const BookCard: React.FC<BookCardProps> = ({ book, onAddToCart, onPublisherClick
               </>
             ) : (
               <button 
-                onClick={() => onAddToCart(book, 'preorder')}
+                onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'preorder'); }}
                 className="p-2 bg-amber-600 text-white rounded-lg hover:shadow-lg transition-all"
                 title="Предзаказ"
               >
@@ -1440,7 +1440,7 @@ function AboutSection() {
         <div className="relative">
           <div className="aspect-[4/5] rounded-[48px] overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-700">
             <img 
-              src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=2000" 
+              src="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=2000" 
               alt="Our Bookstore"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
@@ -1495,9 +1495,10 @@ function AboutSection() {
           </div>
           <div className="relative h-[400px] lg:h-auto">
             <img 
-              src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=1000" 
+              src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&q=80&w=1000" 
               alt="Library"
               className="absolute inset-0 w-full h-full object-cover opacity-60"
+              referrerPolicy="no-referrer"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#1A1A1A] to-transparent" />
           </div>

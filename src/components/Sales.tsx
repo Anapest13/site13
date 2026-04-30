@@ -80,6 +80,8 @@ export default function Sales() {
 
   useEffect(() => {
     fetchOrders();
+    const interval = setInterval(fetchOrders, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
   }, [viewAll]);
 
   const fetchBooks = () => {

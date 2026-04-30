@@ -146,12 +146,20 @@ export default function Clients() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).length === 0 ? (
+        {clients.filter(c => (
+          (c.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+          (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
+          (c.phone || '').toLowerCase().includes(search.toLowerCase())
+        )).length === 0 ? (
           <div className="col-span-full py-20 text-center bg-white rounded-[32px] border border-[#F1F1F4]">
             <p className="text-[#6B7280] text-lg">Клиенты не найдены</p>
           </div>
         ) : (
-          clients.filter(c => (c.full_name || '').toLowerCase().includes(search.toLowerCase())).map((client) => (
+          clients.filter(c => (
+            (c.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+            (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
+            (c.phone || '').toLowerCase().includes(search.toLowerCase())
+          )).map((client) => (
             <div key={client.id} className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
             

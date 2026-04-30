@@ -4,7 +4,7 @@ import {
   TrendingUp, 
   Users, 
   BookOpen, 
-  DollarSign,
+  CreditCard,
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
@@ -108,7 +108,7 @@ export default function Dashboard() {
     { 
       label: 'Общая выручка', 
       value: `${stats.totalRevenue.toLocaleString()} ₽`, 
-      icon: DollarSign, 
+      icon: CreditCard, 
       trend: `${stats.totalRevenueTrend >= 0 ? '+' : ''}${stats.totalRevenueTrend.toFixed(1)}%`, 
       trendUp: stats.totalRevenueTrend >= 0, 
       color: 'text-indigo-600', 
