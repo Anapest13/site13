@@ -391,12 +391,11 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* User Activity Table */}
       <div className="grid grid-cols-1 gap-10">
-        {promoImpact.length > 0 && (
-          <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden p-10">
-            <h3 className="text-2xl font-bold text-[#1A1A1A] mb-2">Влияние акций на активность</h3>
-            <p className="text-sm text-[#6B7280] mb-8">Сравнение активности пользователей до и во время проведения акций.</p>
+        <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden p-10">
+          <h3 className="text-2xl font-bold text-[#1A1A1A] mb-2">Влияние акций на активность</h3>
+          <p className="text-sm text-[#6B7280] mb-8">Сравнение активности пользователей до и во время проведения акций.</p>
+          {promoImpact.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {promoImpact.map((item: any, i: number) => (
                 <div key={i} className="p-6 bg-gray-50 rounded-3xl border border-[#F1F1F4] space-y-6">
@@ -434,8 +433,12 @@ export default function Reports() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="py-12 text-center bg-gray-50 rounded-3xl border border-[#F1F1F4]">
+              <p className="text-[#6B7280]">Нет данных по активным акциям для анализа.</p>
+            </div>
+          )}
+        </div>
 
         <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden">
         <div className="px-10 py-8 border-b border-[#F1F1F4] bg-gray-50/30">

@@ -165,13 +165,14 @@ export default function UserSite() {
     return () => { (window as any).setSelectedBookGlobal = null; };
   }, []);
 
-  const addToCart = (book: Book, type: 'sale' | 'booking' | 'preorder' = 'sale') => {
+  const addToCart = (book: Book | null, type: 'sale' | 'booking' | 'preorder' = 'sale') => {
+    if (!book) return;
     // Stock validation
     if (type !== 'preorder') {
        const existingInCart = cart.find(item => item.book.book_id === book.book_id && item.type === type);
        const currentQty = existingInCart ? existingInCart.quantity : 0;
-       if (currentQty + 1 > book.quantity_in_stock) {
-         showAlert('Ошибка', `На складе всего ${book.quantity_in_stock} шт. этой книги.`, 'error');
+       if (currentQty + 1 > (book.quantity_in_stock || 0)) {
+         showAlert('Ошибка', `На складе всего ${book.quantity_in_stock || 0} шт. этой книги.`, 'error');
          return;
        }
     }
@@ -257,12 +258,22 @@ export default function UserSite() {
     try {
       const res = await fetch('/api/promotions');
       const promos = await res.json();
-      const promo = promos.find((p: any) => p.code_word === promoCode && p.is_active);
+      const now = new Date();
+      const promo = promos.find((p: any) => {
+        const start = new Date(p.start_date);
+        const end = new Date(p.end_date);
+        // Set end to end of day
+        end.setHours(23, 59, 59, 999);
+        return p.code_word === promoCode && 
+               p.is_active && 
+               now >= start && 
+               now <= end;
+      });
       if (promo) {
         setAppliedPromotion(promo);
         alert('Промокод применен!');
       } else {
-        alert('Неверный или неактивный промокод');
+        alert('Неверный, неактивный или истекший промокод');
       }
     } catch (e) {
       alert('Ошибка при проверке промокода');
@@ -371,9 +382,9 @@ export default function UserSite() {
                 className="p-2 hover:bg-[#F3F4F6] rounded-full relative transition-all"
               >
                 <ShoppingCart className="w-5 h-5" />
-                {cart.length > 0 && (
+                {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#1A1A1A] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-                    {cart.length}
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 )}
               </button>
@@ -781,7 +792,7 @@ export default function UserSite() {
                   <h3 className="font-bold text-xl">Итого</h3>
                   <div className="space-y-4">
                     <div className="flex justify-between text-[#6B7280]">
-                      <span>Товары ({cart.length})</span>
+                      <span>Товары ({cart.reduce((sum, item) => sum + item.quantity, 0)})</span>
                       <span>{totalAmount} ₽</span>
                     </div>
                     {discountAmount > 0 && (
@@ -1577,11 +1588,17 @@ function OrdersList({ customerId }: { customerId: number }) {
   const [invoices, setInvoices] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`/api/orders?client_id=${customerId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setOrders(data);
-      });
+    const fetchOrders = () => {
+      fetch(`/api/orders?client_id=${customerId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setOrders(data);
+        });
+    };
+
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 3000);
+    return () => clearInterval(interval);
   }, [customerId]);
 
   const viewInvoice = async (orderId: number) => {
@@ -1631,11 +1648,13 @@ function OrdersList({ customerId }: { customerId: number }) {
                 "text-[10px] font-bold uppercase",
                 order.status === 'completed' ? "text-emerald-600" :
                 order.status === 'cancelled' ? "text-red-600" :
-                order.status === 'pending' ? "text-amber-600" : "text-blue-600"
+                order.status === 'pending' ? "text-amber-600" :
+                order.status === 'reserved' ? "text-blue-600" : "text-blue-600"
               )}>
                 {order.status === 'completed' ? 'Выполнен' : 
                  order.status === 'cancelled' ? 'Отменен' :
-                 order.status === 'pending' ? 'В обработке' : order.status}
+                 order.status === 'pending' ? 'В обработке' : 
+                 order.status === 'reserved' ? 'Бронь' : order.status}
               </span>
             </div>
             <button 
