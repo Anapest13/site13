@@ -210,6 +210,8 @@ export default function Promotions() {
     const now = new Date();
     const start = new Date(promo.start_date);
     const end = new Date(promo.end_date);
+    // Set end to end of day
+    end.setHours(23, 59, 59, 999);
     return now >= start && now <= end && promo.is_active === 1;
   };
 
@@ -217,6 +219,9 @@ export default function Promotions() {
     const now = new Date();
     const start = new Date(promo.start_date);
     const end = new Date(promo.end_date);
+    // Set end to end of day
+    end.setHours(23, 59, 59, 999);
+    
     if (now < start) return 'Запланирована';
     if (now > end) return 'Завершена';
     return promo.is_active === 1 ? 'Активна' : 'Приостановлена';

@@ -1119,22 +1119,26 @@ async function startServer() {
       const impactData = [];
 
       for (const promo of promotions) {
+        // Set end_date to end of day for precise comparison
+        const endDate = new Date(promo.end_date);
+        endDate.setHours(23, 59, 59, 999);
+
         const during = await query(
-          'SELECT SUM(net_amount) as total FROM orders WHERE status="completed" AND order_date BETWEEN ? AND ?',
-          [promo.start_date, promo.end_date]
+          'SELECT SUM(net_amount) as total FROM orders WHERE status IN ("completed", "preordered", "reserved") AND order_date BETWEEN ? AND ?',
+          [promo.start_date, endDate]
         );
         
-        const duration = (new Date(promo.end_date).getTime() - new Date(promo.start_date).getTime());
+        const duration = (endDate.getTime() - new Date(promo.start_date).getTime());
         const preStart = new Date(new Date(promo.start_date).getTime() - duration);
         
         const before = await query(
-          'SELECT SUM(net_amount) as total FROM orders WHERE status="completed" AND order_date BETWEEN ? AND ?',
+          'SELECT SUM(net_amount) as total FROM orders WHERE status IN ("completed", "preordered", "reserved") AND order_date BETWEEN ? AND ?',
           [preStart, promo.start_date]
         );
 
         const activityDuring = await query(
           'SELECT order_type, COUNT(*) as count FROM orders WHERE order_date BETWEEN ? AND ? GROUP BY order_type',
-          [promo.start_date, promo.end_date]
+          [promo.start_date, endDate]
         );
 
         const activityBefore = await query(

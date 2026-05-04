@@ -17,7 +17,11 @@ import {
   Truck,
   ArrowRight,
   Heart,
-  Zap
+  Zap,
+  ShieldCheck,
+  Sparkles,
+  Quote,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, Genre } from '../types';
@@ -382,9 +386,9 @@ export default function UserSite() {
                 className="p-2 hover:bg-[#F3F4F6] rounded-full relative transition-all"
               >
                 <ShoppingCart className="w-5 h-5" />
-                {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
+                {cart.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#1A1A1A] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                    {cart.length}
                   </span>
                 )}
               </button>
@@ -1426,92 +1430,129 @@ function PurchasedBooks({ customerId }: { customerId: number }) {
 function AboutSection() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-32">
-      {/* Hero Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div className="space-y-8">
-          <div className="inline-block px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold uppercase tracking-widest">
+      {/* Hero Section - Text Focused */}
+      <div className="relative">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-3xl opacity-50 -z-10" />
+        <div className="max-w-4xl space-y-12">
+          <div className="inline-flex items-center gap-3 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold uppercase tracking-[0.2em]">
+            <span className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse" />
             Наша история
           </div>
-          <h2 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9]">
-            Книги — это <br />
-            <span className="text-indigo-600">наша страсть.</span>
+          <h2 className="text-7xl md:text-[120px] font-bold tracking-tighter leading-[0.85] text-[#1A1A1A]">
+            Больше чем <br />
+            <span className="text-indigo-600">просто магазин.</span>
           </h2>
-          <p className="text-xl text-[#6B7280] max-w-lg leading-relaxed">
-            С 2010 года Книга24 является вашим надежным проводником в мире литературы. Мы не просто продаем книги, мы помогаем находить новые миры.
-          </p>
-          <div className="flex gap-4">
-            <div className="w-12 h-12 rounded-full bg-[#1A1A1A] flex items-center justify-center text-white">
-              <BookOpen className="w-6 h-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start mt-16">
+            <p className="text-2xl text-[#1A1A1A] font-medium leading-[1.4]">
+              С 2010 года мы создаем пространство, где каждая книга находит своего читателя. Наша страсть — находить редкие издания и открывать новые имена.
+            </p>
+            <div className="space-y-6 text-[#6B7280] text-lg leading-relaxed">
+              <p>
+                Мы начинали как небольшой книжный клуб в самом сердце города. Сегодня Книга24 — это тысячи довольных читателей по всей стране, объединенных любовью к печатному слову.
+              </p>
+              <div className="flex items-center gap-4 pt-4">
+                <div className="flex -space-x-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="w-12 h-12 rounded-full border-4 border-white bg-gray-100 flex items-center justify-center text-xs font-bold text-[#6B7280]">
+                      {String.fromCharCode(64 + i)}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-sm font-bold text-[#1A1A1A]">
+                  50,000+ читателей <br />
+                  <span className="text-[#6B7280] font-normal">доверяют нам</span>
+                </div>
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full border border-[#E5E7EB] flex items-center justify-center">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-        <div className="relative">
-          <div className="aspect-[4/5] rounded-[48px] overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-700">
-            <img 
-              src="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=2000" 
-              alt="Our Bookstore"
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <div className="absolute -bottom-10 -left-10 bg-white p-8 rounded-3xl shadow-xl max-w-[240px] -rotate-3">
-            <p className="text-4xl font-bold text-indigo-600">12+</p>
-            <p className="text-sm font-medium text-[#6B7280]">Лет успешной работы на книжном рынке</p>
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
+      {/* Philosophy Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
-          { label: 'Книг в наличии', value: '15к+', icon: BookOpen },
-          { label: 'Довольных клиентов', value: '50к+', icon: UserIcon },
-          { label: 'Городов доставки', value: '100+', icon: Truck },
-        ].map((stat, idx) => (
-          <div key={idx} className="p-10 bg-white border border-[#E5E7EB] rounded-[40px] space-y-4 hover:border-indigo-600 transition-colors group">
-            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <stat.icon className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="text-5xl font-bold tracking-tighter">{stat.value}</p>
-              <p className="text-[#6B7280] font-medium uppercase tracking-wider text-xs mt-2">{stat.label}</p>
+          { 
+            title: "Кураторский подход", 
+            desc: "Каждая книга в нашем каталоге проходит через руки наших экспертов. Мы продаем только то, что прочли бы сами.", 
+            icon: ShieldCheck,
+            bg: "bg-indigo-600 text-white"
+          },
+          { 
+            title: "Сообщество", 
+            desc: "Мы верим в силу диалога. Наши читатели — это фундамент, на котором строится все, что мы делаем.", 
+            icon: Users,
+            bg: "bg-white border border-[#E5E7EB] text-[#1A1A1A]"
+          },
+          { 
+            title: "Любовь к эстетике", 
+            desc: "Для нас важна не только суть, но и форма. Мы ценим качественную полиграфию и красивый дизайн.", 
+            icon: Sparkles,
+            bg: "bg-[#1A1A1A] text-white"
+          }
+        ].map((v, i) => (
+          <div key={i} className={cn("p-12 rounded-[48px] space-y-8 flex flex-col justify-between h-[400px] transition-transform hover:-translate-y-2 duration-500", v.bg)}>
+            <v.icon className="w-12 h-12" />
+            <div className="space-y-4">
+              <h3 className="text-3xl font-bold tracking-tight">{v.title}</h3>
+              <p className={cn("text-lg leading-relaxed", v.bg.includes('white') ? "text-[#6B7280]" : "opacity-80")}>
+                {v.desc}
+              </p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Mission Section */}
-      <div className="bg-[#1A1A1A] text-white rounded-[64px] overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2">
-          <div className="p-16 md:p-24 space-y-8">
-            <h3 className="text-4xl md:text-5xl font-bold leading-tight">
-              Наша миссия — сделать чтение <span className="text-indigo-400">доступным</span> для каждого.
-            </h3>
-            <p className="text-lg text-gray-400 leading-relaxed">
-              Мы верим, что книги способны менять жизни. Наша цель — сделать чтение доступным и увлекательным для каждого. Мы тщательно отбираем каждую книгу в нашем каталоге, чтобы вы могли найти именно то, что ищете.
-            </p>
-            <div className="space-y-4">
-              {['Тщательный отбор изданий', 'Поддержка молодых авторов', 'Экологичная упаковка'].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center">
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="font-medium">{item}</span>
+      {/* Big Numbers - High Impact */}
+      <div className="bg-gray-50 rounded-[64px] p-20 flex flex-col md:flex-row justify-between items-center gap-12 text-center md:text-left">
+        <div>
+          <h4 className="text-[140px] font-bold tracking-tighter leading-none text-indigo-600">14</h4>
+          <p className="text-xl font-bold text-[#1A1A1A] uppercase tracking-widest mt-4">Лет вдохновения</p>
+        </div>
+        <div className="h-px md:h-32 w-32 md:w-px bg-gray-200" />
+        <div>
+          <h4 className="text-[140px] font-bold tracking-tighter leading-none text-[#1A1A1A]">15к+</h4>
+          <p className="text-xl font-bold text-[#1A1A1A] uppercase tracking-widest mt-4">Изданий в каталоге</p>
+        </div>
+        <div className="h-px md:h-32 w-32 md:w-px bg-gray-200" />
+        <div>
+          <h4 className="text-[140px] font-bold tracking-tighter leading-none text-[#1A1A1A]">100%</h4>
+          <p className="text-xl font-bold text-[#1A1A1A] uppercase tracking-widest mt-4">Гарантия качества</p>
+        </div>
+      </div>
+
+      {/* Values List */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
+        <div className="space-y-8">
+          <h3 className="text-5xl font-bold leading-[1.1] tracking-tight text-[#1A1A1A]">
+            Наши ценности — это <br />
+            наш <span className="text-indigo-600 italic">компас.</span>
+          </h3>
+          <div className="space-y-6">
+            {[
+              { t: "Честность", d: "Мы всегда открыты к нашим клиентам и партнерам." },
+              { t: "Качество", d: "Каждый заказ упаковывается с особой тщательностью." },
+              { t: "Развитие", d: "Мы постоянно ищем способы стать лучше для вас." }
+            ].map((item, i) => (
+              <div key={i} className="flex gap-6 items-start">
+                <div className="w-12 h-12 bg-white border border-[#E5E7EB] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+                  <span className="text-indigo-600 font-bold">0{i+1}</span>
                 </div>
-              ))}
-            </div>
+                <div>
+                  <h5 className="text-xl font-bold text-[#1A1A1A] mb-1">{item.t}</h5>
+                  <p className="text-[#6B7280]">{item.d}</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="relative h-[400px] lg:h-auto">
-            <img 
-              src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&q=80&w=1000" 
-              alt="Library"
-              className="absolute inset-0 w-full h-full object-cover opacity-60"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#1A1A1A] to-transparent" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-indigo-600 aspect-square rounded-[40px] flex items-center justify-center text-white p-10 transform -rotate-3">
+             <Quote className="w-20 h-20 opacity-20 absolute top-8 left-8" />
+             <p className="text-2xl font-medium relative z-10 leading-snug">"Книга — это подарок, который можно открывать снова и снова."</p>
+          </div>
+          <div className="bg-[#1A1A1A] aspect-square rounded-[40px] p-10 mt-12 flex flex-col justify-end transform rotate-3">
+             <Star className="w-12 h-12 text-yellow-400 mb-6" />
+             <p className="text-white text-xl font-bold">Пять звезд от наших читателей на протяжении 14 лет.</p>
           </div>
         </div>
       </div>
@@ -1526,7 +1567,16 @@ function PromotionsSection() {
     fetch('/api/promotions')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) setPromotions(data.filter((p: any) => p.is_active));
+        if (Array.isArray(data)) {
+          const now = new Date();
+          const activePromos = data.filter((p: any) => {
+            const start = new Date(p.start_date);
+            const end = new Date(p.end_date);
+            end.setHours(23, 59, 59, 999);
+            return p.is_active && now >= start && now <= end;
+          });
+          setPromotions(activePromos);
+        }
       });
   }, []);
 
