@@ -1475,26 +1475,29 @@ function AboutSection() {
             title: "Кураторский подход", 
             desc: "Каждая книга в нашем каталоге проходит через руки наших экспертов. Мы продаем только то, что прочли бы сами.", 
             icon: ShieldCheck,
-            bg: "bg-indigo-600 text-white"
+            style: "bg-indigo-600 text-white",
+            descStyle: "text-indigo-100"
           },
           { 
             title: "Сообщество", 
             desc: "Мы верим в силу диалога. Наши читатели — это фундамент, на котором строится все, что мы делаем.", 
             icon: Users,
-            bg: "bg-white border border-[#E5E7EB] text-[#1A1A1A]"
+            style: "bg-white border border-[#E5E7EB] text-[#1A1A1A]",
+            descStyle: "text-[#6B7280]"
           },
           { 
             title: "Любовь к эстетике", 
             desc: "Для нас важна не только суть, но и форма. Мы ценим качественную полиграфию и красивый дизайн.", 
             icon: Sparkles,
-            bg: "bg-[#1A1A1A] text-white"
+            style: "bg-[#1A1A1A] text-white",
+            descStyle: "text-gray-400"
           }
         ].map((v, i) => (
-          <div key={i} className={cn("p-12 rounded-[48px] space-y-8 flex flex-col justify-between h-[400px] transition-transform hover:-translate-y-2 duration-500", v.bg)}>
+          <div key={i} className={cn("p-12 rounded-[48px] space-y-8 flex flex-col justify-between h-[400px] transition-transform hover:-translate-y-2 duration-500", v.style)}>
             <v.icon className="w-12 h-12" />
             <div className="space-y-4">
               <h3 className="text-3xl font-bold tracking-tight">{v.title}</h3>
-              <p className={cn("text-lg leading-relaxed", v.bg.includes('white') ? "text-[#6B7280]" : "opacity-80")}>
+              <p className={cn("text-lg leading-relaxed font-medium", v.descStyle)}>
                 {v.desc}
               </p>
             </div>
