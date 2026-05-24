@@ -58,6 +58,7 @@ export default function UserSite() {
   const [user, setUser] = useState<any>(null);
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<any>(null);
+  const [shippingAddress, setShippingAddress] = useState('');
   const [selectedPublisher, setSelectedPublisher] = useState<any>(null);
   const [selectedAuthor, setSelectedAuthor] = useState<any>(null);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -290,6 +291,11 @@ export default function UserSite() {
       return;
     }
 
+    if (!shippingAddress.trim()) {
+      alert('Пожалуйста, укажите адрес доставки перед оформлением заказа');
+      return;
+    }
+
     const orderData = {
       customer_id: user.customer_id || user.id,
       items: cart.map(item => ({
@@ -301,7 +307,8 @@ export default function UserSite() {
       total_amount: totalAmount,
       discount_amount: discountAmount,
       promotion_id: appliedPromotion?.promotion_id,
-      net_amount: netAmount
+      net_amount: netAmount,
+      shipping_address: shippingAddress
     };
 
     try {
@@ -315,6 +322,7 @@ export default function UserSite() {
         setCart([]);
         setAppliedPromotion(null);
         setPromoCode('');
+        setShippingAddress('');
         alert('Заказ успешно оформлен!');
         setView('profile');
       } else {
@@ -386,9 +394,9 @@ export default function UserSite() {
                 className="p-2 hover:bg-[#F3F4F6] rounded-full relative transition-all"
               >
                 <ShoppingCart className="w-5 h-5" />
-                {cart.length > 0 && (
+                {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#1A1A1A] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-                    {cart.length}
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 )}
               </button>
@@ -818,7 +826,7 @@ export default function UserSite() {
                   <div className="pt-4 border-t border-[#E5E7EB]">
                     <p className="text-sm font-bold mb-2">Промокод</p>
                     <div className="flex gap-2">
-                      <input 
+                       <input 
                         type="text" 
                         placeholder="Введите код"
                         value={promoCode}
@@ -832,6 +840,18 @@ export default function UserSite() {
                         Применить
                       </button>
                     </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-[#E5E7EB] space-y-2">
+                    <p className="text-sm font-bold">Адрес доставки</p>
+                    <textarea 
+                      placeholder="Укажите город, улицу, дом, квартиру..."
+                      required
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      rows={2}
+                      className="w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#1A1A1A]/10 resize-none font-medium"
+                    />
                   </div>
 
                   <button 
@@ -1731,6 +1751,15 @@ function OrdersList({ customerId }: { customerId: number }) {
               </button>
             </div>
             <div className="space-y-6">
+              {selectedOrder.shipping_address && (
+                <div className="p-6 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl flex items-start gap-3">
+                  <Truck className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Адрес доставки</p>
+                    <p className="text-sm font-medium text-[#1A1A1A]">{selectedOrder.shipping_address}</p>
+                  </div>
+                </div>
+              )}
               {invoices.map(inv => (
                 <div key={inv.invoice_id} className="p-6 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB]">
                   <div className="flex justify-between mb-4">

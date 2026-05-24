@@ -220,12 +220,14 @@ async function startServer() {
         net_amount DECIMAL(10, 2) NOT NULL,
         promotion_id BIGINT UNSIGNED,
         status VARCHAR(50) DEFAULT 'pending',
+        shipping_address TEXT,
         FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
         FOREIGN KEY (promotion_id) REFERENCES promotions(promotion_id)
       )`);
       try { await query('ALTER TABLE orders MODIFY order_id BIGINT UNSIGNED AUTO_INCREMENT'); } catch(e) {}
       try { await query('ALTER TABLE orders MODIFY customer_id BIGINT UNSIGNED'); } catch(e) {}
       try { await query('ALTER TABLE orders MODIFY promotion_id BIGINT UNSIGNED'); } catch(e) {}
+      try { await query('ALTER TABLE orders ADD COLUMN shipping_address TEXT'); } catch(e) {}
       try { 
         // Ensure the enum is correct even if the table already existed and remove any check constraints
         // Ensure orders table is correct and drop problematic constraints
@@ -778,7 +780,7 @@ async function startServer() {
   });
 
   app.post('/api/orders', async (req, res) => {
-    const { customer_id, items, total_amount, net_amount, discount_amount, promotion_id } = req.body;
+    const { customer_id, items, total_amount, net_amount, discount_amount, promotion_id, shipping_address } = req.body;
     
     // Validation
     if (!customer_id || !items || items.length === 0) {
@@ -799,8 +801,8 @@ async function startServer() {
       const status = order_type === 'sale' ? 'completed' : (order_type === 'preorder' ? 'preordered' : 'reserved');
       
       const orderRes = await query(
-        'INSERT INTO orders (customer_id, order_type, total_amount, net_amount, discount_amount, promotion_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [customer_id, order_type, total_amount, net_amount, discount_amount || 0, promotion_id || null, status]
+        'INSERT INTO orders (customer_id, order_type, total_amount, net_amount, discount_amount, promotion_id, status, shipping_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [customer_id, order_type, total_amount, net_amount, discount_amount || 0, promotion_id || null, status, shipping_address || '']
       );
       const orderId = orderRes.insertId;
 

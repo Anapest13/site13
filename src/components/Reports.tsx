@@ -52,13 +52,18 @@ export default function Reports() {
       });
 
     fetch('/api/reports/promotions-impact')
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
           setPromoImpact(data);
+        } else {
+          setPromoImpact([]);
         }
       })
-      .catch(err => console.error('Error fetching promo impact:', err));
+      .catch(err => {
+        console.error('Error fetching promo impact:', err);
+        setPromoImpact([]);
+      });
     
     const queryParams = new URLSearchParams({ period });
     if (startDate) queryParams.append('start_date', startDate);
@@ -139,11 +144,18 @@ export default function Reports() {
 
           // Add data
           detailedData.forEach(item => {
+            let statusRu = item.status;
+            if (item.status === 'completed') statusRu = 'Выполнен';
+            else if (item.status === 'pending') statusRu = 'В обработке';
+            else if (item.status === 'reserved') statusRu = 'Бронь';
+            else if (item.status === 'preordered') statusRu = 'Предзаказ';
+            else if (item.status === 'cancelled') statusRu = 'Отменен';
+
             const rowValue = [
               item.order_id,
               new Date(item.order_date).toLocaleString('ru-RU'),
               item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
-              item.status === 'completed' ? 'Завершено' : (item.status === 'pending' ? 'В ожидании' : 'Активно'),
+              statusRu,
               item.customer_name || 'Гость',
               item.customer_email || '-',
               item.book_title,
@@ -189,20 +201,27 @@ export default function Reports() {
                 fgColor: { argb: 'FFD1FAE5' } // emerald-100
               };
               statusCell.font = { color: { argb: 'FF065F46' }, bold: true }; // emerald-600
-            } else if (statusValue === 'pending' || statusValue === 'в ожидании') {
+            } else if (statusValue === 'pending' || statusValue === 'в ожидании' || statusValue === 'в обработке') {
               statusCell.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFFEF3C7' } // amber-100
               };
               statusCell.font = { color: { argb: 'FFB45309' }, bold: true }; // amber-600
-            } else {
+            } else if (statusValue === 'reserved' || statusValue === 'бронь') {
               statusCell.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFDBEAFE' } // blue-100
               };
               statusCell.font = { color: { argb: 'FF1E40AF' }, bold: true }; // blue-600
+            } else {
+              statusCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF3F4F6' } // gray-100
+              };
+              statusCell.font = { color: { argb: 'FF4B5563' }, bold: true }; // gray-600
             }
           });
 
@@ -232,6 +251,8 @@ export default function Reports() {
 
   useEffect(() => {
     fetchReports();
+    const interval = setInterval(fetchReports, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
   }, [period, startDate, endDate]);
 
   return (
@@ -328,7 +349,7 @@ export default function Reports() {
           </div>
         </div>
         <div className="h-[400px] relative z-10">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" key={`chart-${period}-${salesHistory.length}-${salesHistory.reduce((sum, item) => sum + (item.total || 0), 0)}`}>
             <BarChart data={salesHistory} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">

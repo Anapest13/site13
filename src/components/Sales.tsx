@@ -11,7 +11,8 @@ import {
   ArrowRight,
   FileText,
   X,
-  MoreVertical
+  MoreVertical,
+  Truck
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Book, Client, Promotion, Order } from '../types';
@@ -674,6 +675,15 @@ export default function Sales() {
               </button>
             </div>
             <div className="space-y-6">
+              {selectedOrder.shipping_address && (
+                <div className="p-6 bg-indigo-50/50 border border-indigo-100 rounded-[24px] flex items-start gap-3">
+                  <Truck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Адрес доставки</p>
+                    <p className="text-sm font-semibold text-[#1A1A1A]">{selectedOrder.shipping_address}</p>
+                  </div>
+                </div>
+              )}
               {invoices.map(inv => (
                 <div key={inv.invoice_id} className="p-8 bg-gray-50/50 rounded-[32px] border border-[#F1F1F4] relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 rounded-full -mr-16 -mt-16 transition-all group-hover:scale-110" />

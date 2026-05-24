@@ -145,81 +145,91 @@ export default function Clients() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden">
         {clients.filter(c => (
           (c.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
           (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
           (c.phone || '').toLowerCase().includes(search.toLowerCase())
         )).length === 0 ? (
-          <div className="col-span-full py-20 text-center bg-white rounded-[32px] border border-[#F1F1F4]">
+          <div className="py-20 text-center bg-white">
             <p className="text-[#6B7280] text-lg">Клиенты не найдены</p>
           </div>
         ) : (
-          clients.filter(c => (
-            (c.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
-            (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
-            (c.phone || '').toLowerCase().includes(search.toLowerCase())
-          )).map((client) => (
-            <div key={client.id} className="bg-white p-8 rounded-[32px] border border-[#F1F1F4] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
-            
-            <div className="relative">
-              <div className="flex items-start justify-between mb-6">
-                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-                  <User className="w-7 h-7" />
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => { setEditingClient(client); setIsModalOpen(true); }}
-                    className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(client.id)}
-                    className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-red-600 hover:border-red-100 shadow-sm transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <h3 className="text-xl font-bold text-[#1A1A1A]">{client.full_name}</h3>
-              <p className="text-[10px] font-bold text-[#9CA3AF] mt-1 uppercase tracking-widest">ID Клиента: #{client.id?.toString().padStart(4, '0') || 'N/A'}</p>
-              
-              <div className="mt-8 space-y-4">
-                <div className="flex items-center gap-3 text-sm font-medium text-[#4B5563]">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#9CA3AF]">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <span>{client.email}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm font-medium text-[#4B5563]">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#9CA3AF]">
-                    <Phone className="w-4 h-4" />
-                  </div>
-                  <span>{client.phone}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm font-medium text-[#4B5563]">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#9CA3AF]">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  <span>Регистрация: {new Date(client.created_at).toLocaleDateString('ru-RU')}</span>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-[#F1F1F4]">
-                <button 
-                  onClick={() => handleShowHistory(client)}
-                  className="w-full py-3 bg-[#F9FAFB] text-[#1A1A1A] text-xs font-bold rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 border border-transparent hover:border-indigo-100"
-                >
-                  <History className="w-4 h-4" />
-                  История заказов
-                </button>
-              </div>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-[#F1F1F4]">
+                  <th className="px-8 py-5 text-[10px] font-bold text-[#1A1A1A] uppercase tracking-[0.1em]">Клиент</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-[#1A1A1A] uppercase tracking-[0.1em]">Контакты</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-[#1A1A1A] uppercase tracking-[0.1em]">Дата регистрации</th>
+                  <th className="px-8 py-5 text-[10px] font-bold text-[#1A1A1A] uppercase tracking-[0.1em] text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F1F4]">
+                {clients.filter(c => (
+                  (c.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+                  (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
+                  (c.phone || '').toLowerCase().includes(search.toLowerCase())
+                )).map((client) => (
+                  <tr key={client.id} className="hover:bg-[#F9FAFB] transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                          <User className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-[#1A1A1A] block">{client.full_name}</span>
+                          <span className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider">ID: #{client.id?.toString().padStart(4, '0') || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                          <Mail className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                          <span>{client.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                          <Phone className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                          <span>{client.phone}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+                        <Calendar className="w-4 h-4 text-[#9CA3AF]" />
+                        <span>{new Date(client.created_at).toLocaleDateString('ru-RU')}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleShowHistory(client)}
+                          className="px-4 py-2.5 bg-[#F9FAFB] border border-[#F1F1F4] rounded-xl text-xs font-bold text-[#1A1A1A] hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all flex items-center gap-2 animate-none"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                          История заказов
+                        </button>
+                        <button 
+                          onClick={() => { setEditingClient(client); setIsModalOpen(true); }}
+                          className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(client.id)}
+                          className="p-2.5 bg-white border border-[#F1F1F4] rounded-xl text-[#9CA3AF] hover:text-red-600 hover:border-red-100 shadow-sm transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )))}
+        )}
       </div>
 
       {historyClient && (
