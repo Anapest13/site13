@@ -44,7 +44,7 @@ const getImageUrl = (url: string | null, id?: number | string) => {
   return `/images/${url}`;
 };
 
-export default function UserSite() {
+export default function UserSite({ user: propUser, onLogout: propOnLogout }: { user?: any; onLogout?: () => void } = {}) {
   const [view, setView] = useState<UserView>('home');
   const [filterType, setFilterType] = useState<'all' | 'bestsellers' | 'newest'>('all');
   const [books, setBooks] = useState<Book[]>([]);
@@ -147,6 +147,12 @@ export default function UserSite() {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [view, filterType]);
+
+  useEffect(() => {
+    if (propUser !== undefined) {
+      setUser(propUser);
+    }
+  }, [propUser]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -287,7 +293,8 @@ export default function UserSite() {
 
   const handleCheckout = async () => {
     if (!user) {
-      alert('Пожалуйста, войдите в аккаунт для оформления заказа');
+      alert('Пожалуйста, войдите в аккаунт или зарегистрируйтесь, чтобы оформить заказ.');
+      window.dispatchEvent(new CustomEvent('auth-request'));
       return;
     }
 
@@ -323,7 +330,13 @@ export default function UserSite() {
         setAppliedPromotion(null);
         setPromoCode('');
         setShippingAddress('');
-        alert('Заказ успешно оформлен!');
+        const emailMsg = user && user.email ? ` на вашу почту: ${user.email}` : '';
+        alert(`Заказ успешно оформлен!\nЭлектронный чек отправлен${emailMsg}.`);
+        showAlert(
+          'Заказ успешно оформлен!',
+          `Спасибо за ваш заказ! Электронный чек был успешно отправлен${emailMsg}. Оплата будет произведена при получении.`,
+          'info'
+        );
         setView('profile');
       } else {
         const err = await res.json();
@@ -400,12 +413,23 @@ export default function UserSite() {
                   </span>
                 )}
               </button>
-              <button 
-                onClick={() => setView('profile')}
-                className="p-2 hover:bg-[#F3F4F6] rounded-full transition-all"
-              >
-                <UserIcon className="w-5 h-5" />
-              </button>
+              {!user ? (
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('auth-request'))}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-full transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  <UserIcon className="w-4 h-4" />
+                  <span>Войти</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setView('profile')}
+                  className="p-2 hover:bg-[#F3F4F6] rounded-full transition-all flex items-center gap-1.5"
+                >
+                  <UserIcon className="w-5 h-5" />
+                  <span className="text-xs font-bold hidden md:inline">{user.first_name}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -854,6 +878,14 @@ export default function UserSite() {
                     />
                   </div>
 
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3 text-xs text-emerald-800">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Оплата при получении</p>
+                      <p className="text-emerald-700/90 mt-0.5">Оплата производится при получении заказа (наличными или картой курьеру).</p>
+                    </div>
+                  </div>
+
                   <button 
                     onClick={handleCheckout}
                     className="w-full bg-[#1A1A1A] text-white py-4 rounded-2xl font-bold hover:shadow-xl transition-all"
@@ -935,8 +967,12 @@ export default function UserSite() {
                   </div>
                   <button 
                     onClick={() => {
-                      localStorage.removeItem('user');
-                      window.location.reload();
+                      if (propOnLogout) {
+                        propOnLogout();
+                      } else {
+                        localStorage.removeItem('user');
+                        window.location.reload();
+                      }
                     }}
                     className="px-6 py-2 border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 transition-all"
                   >

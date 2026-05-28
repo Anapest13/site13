@@ -7,6 +7,7 @@ import mysql from "mysql2";
 import cors from "cors";
 import multer from "multer";
 import fs from "fs";
+import nodemailer from "nodemailer";
 
 // Ensure images directory exists
 const imagesDir = path.join(process.cwd(), 'images');
@@ -84,6 +85,252 @@ const query = async (sql: string, params?: any[], retries = 3) => {
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const sendReceiptEmail = async (orderId: number) => {
+  try {
+    console.log(`[Email Service] Starting receipt shipment for Order ID: ${orderId}...`);
+    const orders = await query('SELECT * FROM orders WHERE order_id = ?', [orderId]);
+    if (!orders || orders.length === 0) {
+      console.warn(`[Email Service] Order with ID ${orderId} not found.`);
+      return;
+    }
+    const order = orders[0];
+
+    const customers = await query('SELECT * FROM customers WHERE customer_id = ?', [order.customer_id]);
+    if (!customers || customers.length === 0) {
+      console.warn(`[Email Service] Customer for Order ID ${orderId} not found.`);
+      return;
+    }
+    const customer = customers[0];
+
+    if (!customer.email) {
+      console.warn(`[Email Service] Customer for Order ID ${orderId} does not have an email address.`);
+      return;
+    }
+
+    const items = await query(`
+      SELECT oi.*, b.title, b.isbn 
+      FROM order_items oi 
+      JOIN books b ON oi.book_id = b.book_id 
+      WHERE oi.order_id = ?
+    `, [orderId]);
+
+    const orderTypeTranslations: Record<string, string> = {
+      sale: 'Покупка',
+      booking: 'Бронь',
+      reservation: 'Резерв',
+      preorder: 'Предзаказ'
+    };
+
+    const orderTypeStr = orderTypeTranslations[order.order_type] || order.order_type;
+
+    const formattedDate = new Date(order.order_date).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Build invoice item list
+    let itemHtmlRows = '';
+    items.forEach((item: any) => {
+      itemHtmlRows += `
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB; text-align: left; vertical-align: top;">
+            <div style="font-weight: bold; color: #1A1A1A; font-size: 14px;">${item.title}</div>
+            ${item.isbn ? `<div style="font-size: 11px; color: #6B7280; margin-top: 2px;">ISBN: ${item.isbn}</div>` : ''}
+          </td>
+          <td style="padding: 12px 10px; border-bottom: 1px solid #E5E7EB; text-align: center; color: #4B5563; font-size: 14px; vertical-align: top;">
+            ${item.quantity} шт.
+          </td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB; text-align: right; font-weight: bold; color: #1A1A1A; font-size: 14px; vertical-align: top;">
+            ${item.unit_price} ₽
+          </td>
+        </tr>
+      `;
+    });
+
+    const isMissingYandexKeys = !process.env.YANDEX_USER || !process.env.YANDEX_PASSWORD;
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Чек по заказу №${orderId}</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #F3F4F6; padding: 30px 10px;">
+          <tr>
+            <td align="center">
+              <table width="100%" max-width="600" style="max-width: 600px; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #E5E7EB;" border="0" cellspacing="0" cellpadding="0">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="padding: 40px; text-align: center; background-color: #1A1A1A; color: #FFFFFF;">
+                    <div style="width: 48px; height: 48px; background-color: #4F46E5; border-radius: 12px; display: inline-block; line-height: 48px; font-weight: 900; font-size: 24px; color: #FFFFFF; margin-bottom: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.2)">К</div>
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase;">Книга24</h1>
+                    <p style="margin: 4px 0 0 0; font-size: 14px; color: #9CA3AF;">Электронный чек по заказу №${orderId}</p>
+                  </td>
+                </tr>
+
+                <!-- Order Summary Info -->
+                <tr>
+                  <td style="padding: 30px 40px 10px 40px;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="vertical-align: top; padding-bottom: 20px;">
+                          <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 4px;">Получатель</div>
+                          <div style="font-size: 15px; font-weight: bold; color: #111827;">${customer.first_name} ${customer.last_name}</div>
+                          <div style="font-size: 14px; color: #4B5563; margin-top: 2px;">${customer.email}</div>
+                          ${customer.phone ? `<div style="font-size: 14px; color: #4B5563;">${customer.phone}</div>` : ''}
+                        </td>
+                        <td style="vertical-align: top; text-align: right; padding-bottom: 20px;">
+                          <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 4px;">Дата заказа</div>
+                          <div style="font-size: 14px; color: #111827; font-weight: bold;">${formattedDate}</div>
+                          <div style="margin-top: 8px;">
+                            <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: bold; text-transform: uppercase; background-color: #EEF2F6; color: #4F46E5;">
+                              ${orderTypeStr}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr>
+                  <td style="padding: 0 40px;">
+                    <hr style="border: 0; border-top: 1px solid #F3F4F6; margin: 0;">
+                  </td>
+                </tr>
+
+                <!-- Item details -->
+                <tr>
+                  <td style="padding: 20px 40px 10px 40px;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <thead>
+                        <tr>
+                          <th style="padding-bottom: 12px; border-bottom: 2px solid #E5E7EB; text-align: left; font-size: 12px; text-transform: uppercase; color: #9CA3AF; font-weight: bold; letter-spacing: 0.05em;">Товар</th>
+                          <th style="padding-bottom: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; font-size: 12px; text-transform: uppercase; color: #9CA3AF; font-weight: bold; letter-spacing: 0.05em; width: 60px;">Кол-во</th>
+                          <th style="padding-bottom: 12px; border-bottom: 2px solid #E5E7EB; text-align: right; font-size: 12px; text-transform: uppercase; color: #9CA3AF; font-weight: bold; letter-spacing: 0.05em; width: 100px;">Цена</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${itemHtmlRows}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Totals -->
+                <tr>
+                  <td style="padding: 20px 40px 30px 40px;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 10px;">
+                      <tr>
+                        <td style="width: 50%;"></td>
+                        <td>
+                          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 14px; color: #4B5563;">
+                            <tr>
+                              <td style="padding: 4px 0;">Сумма:</td>
+                              <td style="text-align: right; font-weight: bold; color: #111827;">${order.total_amount} ₽</td>
+                            </tr>
+                            ${Number(order.discount_amount) > 0 ? `
+                            <tr>
+                              <td style="padding: 4px 0; color: #10B981;">Скидка:</td>
+                              <td style="text-align: right; font-weight: bold; color: #10B981;">-${order.discount_amount} ₽</td>
+                            </tr>` : ''}
+                            <tr>
+                              <td style="padding: 8px 0; border-top: 1px solid #F3F4F6; font-size: 16px; font-weight: bold; color: #111827;">Итого к оплате:</td>
+                              <td style="padding: 8px 0; border-top: 1px solid #F3F4F6; text-align: right; font-size: 18px; font-weight: 900; color: #4F46E5;">${order.net_amount} ₽</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr>
+                  <td style="padding: 0 40px;">
+                    <hr style="border: 0; border-top: 1px solid #F3F4F6; margin: 0;">
+                  </td>
+                </tr>
+
+                <!-- Delivery & Payment -->
+                <tr>
+                  <td style="padding: 30px 40px;">
+                    <div style="background-color: #F9FAFB; border-radius: 16px; padding: 20px; border: 1px solid #F3F4F6;">
+                      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                        <tr>
+                          <td style="vertical-align: top; padding-right: 15px;">
+                            <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 4px;">Адрес доставки</div>
+                            <div style="font-size: 14px; color: #374151; font-weight: 500; line-height: 1.5;">${order.shipping_address || 'Самовывоз / Не указан'}</div>
+                          </td>
+                          <td style="vertical-align: top; width: 45%;">
+                            <div style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 4px;">Способ оплаты</div>
+                            <div style="font-size: 14px; color: #047857; font-weight: bold;">Оплата при получении</div>
+                            <div style="font-size: 12px; color: #065F46; margin-top: 2px;">Наличными или картой курьеру</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Footer disclaimer -->
+                <tr>
+                  <td style="padding: 30px 40px 40px 40px; background-color: #F9FAFB; border-top: 1px solid #E5E7EB; text-align: center;">
+                    <p style="margin: 0; font-size: 14px; font-weight: bold; color: #4B5563;">Спасибо за покупку в Книга24!</p>
+                    <p style="margin: 6px 0 0 0; font-size: 12px; color: #9CA3AF;">Если у вас остались вопросы, обратитесь в нашу службу поддержки.</p>
+                    ${isMissingYandexKeys ? `
+                    <div style="margin-top: 15px; padding: 10px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; font-size: 11px; color: #92400E; text-align: center; font-weight: bold;">
+                      [Внимание] Письмо создано в режиме тестирования (данные SMTP не заполнены в .env).
+                    </div>` : ''}
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    if (isMissingYandexKeys) {
+      console.warn(`[Email Service] Yandex SMTP credentials (YANDEX_USER and YANDEX_PASSWORD) are not configured. Email to ${customer.email} will not be sent physically.`);
+      console.log(`[Email Service] Receipt Preview HTML generated successfully for ${customer.email}.`);
+      return;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.yandex.ru',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.YANDEX_USER,
+        pass: process.env.YANDEX_PASSWORD
+      }
+    });
+
+    const mailOptions = {
+      from: `"Книга24" <${process.env.YANDEX_USER}>`,
+      to: customer.email,
+      subject: `Электронный чек по заказу №${orderId} — Интернет-магазин Книга24`,
+      html: htmlContent
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[Email Service] Receipt sent to ${customer.email} (Message ID: ${info.messageId})`);
+  } catch (error) {
+    console.error(`[Email Service] Failed to send receipt email for Order ID ${orderId}:`, error);
+  }
+};
 
 async function startServer() {
   const app = express();
@@ -341,7 +588,255 @@ async function startServer() {
     }
   }
 
+  async function seedMockData() {
+    console.log('Checking if mock data needs to be seeded...');
+    try {
+      // 1. Publishers
+      const publishersCount = await query('SELECT COUNT(*) as count FROM publishers');
+      let defaultPublishers: any[] = [];
+      if (publishersCount[0].count === 0) {
+        await query("INSERT INTO publishers (name, email, phone) VALUES ('Альпина Паблишер', 'info@alpina.ru', '+7(495)120-01-10')");
+        await query("INSERT INTO publishers (name, email, phone) VALUES ('Манн, Иванов и Фербер', 'support@mif.ru', '+7(495)648-60-20')");
+        await query("INSERT INTO publishers (name, email, phone) VALUES ('Эксмо', 'customer@eksmo.ru', '+7(495)411-68-86')");
+      }
+      defaultPublishers = await query('SELECT * FROM publishers');
+
+      // 2. Authors
+      const authorsCount = await query('SELECT COUNT(*) as count FROM authors');
+      let defaultAuthors: any[] = [];
+      if (authorsCount[0].count === 0) {
+        await query("INSERT INTO authors (name, biography) VALUES ('Айзек Азимов', 'Американский писатель-фантаст, популяризатор науки')");
+        await query("INSERT INTO authors (name, biography) VALUES ('Роберт Кийосаки', 'Американский предприниматель, инвестор, автор бестселлеров')");
+        await query("INSERT INTO authors (name, biography) VALUES ('Дж. К. Роулинг', 'Британская писательница, автор серии романов о Гарри Поттере')");
+      }
+      defaultAuthors = await query('SELECT * FROM authors');
+
+      // 3. Books
+      const booksCount = await query('SELECT COUNT(*) as count FROM books');
+      let defaultBooks: any[] = [];
+      if (booksCount[0].count === 0) {
+        const b1Result = await query(
+          `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, pages_count, cover_type) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            'Основание', 
+            '9785171120467', 
+            750.00, 
+            45, 
+            defaultPublishers[0].publisher_id, 
+            2021, 
+            'Великая классика научной фантастики об упадке Галактической Империи.', 
+            320, 
+            'hard'
+          ]
+        );
+        const book1Id = b1Result.insertId;
+
+        const b2Result = await query(
+          `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, pages_count, cover_type) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            'Богатый папа, бедный папа', 
+            '9785171093112', 
+            650.00, 
+            60, 
+            defaultPublishers[1].publisher_id, 
+            2019, 
+            'Книга по финансовой грамотности для всех слоев населения.', 
+            350, 
+            'soft'
+          ]
+        );
+        const book2Id = b2Result.insertId;
+
+        const b3Result = await query(
+          `INSERT INTO books (title, isbn, price, quantity_in_stock, publisher_id, publication_year, description, pages_count, cover_type) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            'Гарри Поттер и философский камень', 
+            '9785389074354', 
+            950.00, 
+            30, 
+            defaultPublishers[2].publisher_id, 
+            2020, 
+            'Первая книга знаменитой серии романов об обучении молодого волшебника.', 
+            400, 
+            'hard'
+          ]
+        );
+        const book3Id = b3Result.insertId;
+
+        await query('INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)', [book1Id, defaultAuthors[0].author_id]);
+        await query('INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)', [book2Id, defaultAuthors[1].author_id]);
+        await query('INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)', [book3Id, defaultAuthors[2].author_id]);
+
+        const gFantas = await query("SELECT genre_id FROM genres WHERE name = 'Фантастика'");
+        const gSciPop = await query("SELECT genre_id FROM genres WHERE name = 'Научпоп'");
+        const gFiction = await query("SELECT genre_id FROM genres WHERE name = 'Художественная'");
+
+        if (gFantas.length > 0) await query('INSERT INTO book_genres (book_id, genre_id) VALUES (?, ?)', [book1Id, gFantas[0].genre_id]);
+        if (gSciPop.length > 0) await query('INSERT INTO book_genres (book_id, genre_id) VALUES (?, ?)', [book2Id, gSciPop[0].genre_id]);
+        if (gFiction.length > 0) await query('INSERT INTO book_genres (book_id, genre_id) VALUES (?, ?)', [book3Id, gFiction[0].genre_id]);
+      }
+      defaultBooks = await query('SELECT * FROM books');
+
+      // 4. Promotions
+      const promotionsCount = await query('SELECT COUNT(*) as count FROM promotions');
+      let defaultPromos: any[] = [];
+      if (promotionsCount[0].count === 0) {
+        const now = new Date();
+        const p1Start = new Date(); p1Start.setDate(now.getDate() - 15);
+        const p1End = new Date(); p1End.setDate(now.getDate() - 5);
+        
+        const p2Start = new Date(); p2Start.setDate(now.getDate() - 4);
+        const p2End = new Date(); p2End.setDate(now.getDate() + 1);
+
+        const p3Start = new Date(); p3Start.setDate(now.getDate() + 2);
+        const p3End = new Date(); p3End.setDate(now.getDate() + 12);
+
+        await query(
+          'INSERT INTO promotions (name, start_date, end_date, discount_type, discount_value, code_word, usage_limit, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+          ['Весенняя распродажа', p1Start.toISOString().split('T')[0], p1End.toISOString().split('T')[0], 'fixed', 100.00, 'SPRING100', 100]
+        );
+        await query(
+          'INSERT INTO promotions (name, start_date, end_date, discount_type, discount_value, code_word, usage_limit, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+          ['Неделя фантастики', p2Start.toISOString().split('T')[0], p2End.toISOString().split('T')[0], 'percentage', 15.00, 'SCIFI15', 50]
+        );
+        await query(
+          'INSERT INTO promotions (name, start_date, end_date, discount_type, discount_value, code_word, usage_limit, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+          ['Летнее чтение', p3Start.toISOString().split('T')[0], p3End.toISOString().split('T')[0], 'percentage', 10.00, 'SUMMER10', 200]
+        );
+      }
+      defaultPromos = await query('SELECT * FROM promotions');
+
+      // 5. Customers
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@bookcity.com';
+      const customersCount = await query('SELECT COUNT(*) as count FROM customers WHERE email != ?', [adminEmail]);
+      let defaultCustomers: any[] = [];
+      if (customersCount[0].count === 0) {
+        const hashedPassword = await bcrypt.hash('password123', 10);
+        await query(
+          'INSERT INTO customers (first_name, last_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)',
+          ['Иван', 'Иванов', 'ivan@mail.ru', '+7(900)123-45-67', hashedPassword]
+        );
+        await query(
+          'INSERT INTO customers (first_name, last_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)',
+          ['Мария', 'Смирнова', 'maria@yandex.ru', '+7(900)765-43-21', hashedPassword]
+        );
+        await query(
+          'INSERT INTO customers (first_name, last_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)',
+          ['Алексей', 'Петров', 'alex@gmail.com', '+7(911)111-22-33', hashedPassword]
+        );
+      }
+      defaultCustomers = await query("SELECT * FROM customers WHERE email != ?", [adminEmail]);
+
+      // 6. Orders
+      const ordersCount = await query('SELECT COUNT(*) as count FROM orders');
+      if (ordersCount[0].count === 0 && defaultBooks.length >= 3 && defaultPromos.length >= 2 && defaultCustomers.length >= 3) {
+        const promoSpring = defaultPromos.find(p => p.name === 'Весенняя распродажа');
+        const promoScifi = defaultPromos.find(p => p.name === 'Неделя фантастики');
+        
+        const now = new Date();
+
+        // Ivanov buys Book 2 (Before Promo 1)
+        const dateBeforeP1_A = new Date(); dateBeforeP1_A.setDate(now.getDate() - 20);
+        const totalA = defaultBooks[1].price;
+        const ordBeforeA = await query(
+          `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, status, shipping_address) 
+           VALUES (?, ?, 'sale', ?, 0, ?, 'completed', 'г. Москва, ул. Ленина, д. 5')`,
+          [defaultCustomers[0].customer_id, dateBeforeP1_A.toISOString().slice(0, 19).replace('T', ' '), totalA, totalA]
+        );
+        await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordBeforeA.insertId, defaultBooks[1].book_id, defaultBooks[1].price]);
+        await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordBeforeA.insertId, `INV-SEED-${ordBeforeA.insertId}`, totalA]);
+
+        // Smirnova buys Book 1 (Before Promo 1)
+        const dateBeforeP1_B = new Date(); dateBeforeP1_B.setDate(now.getDate() - 18);
+        const totalB = defaultBooks[0].price;
+        const ordBeforeB = await query(
+          `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, status, shipping_address) 
+           VALUES (?, ?, 'sale', ?, 0, ?, 'completed', 'г. Санкт-Петербург, Невский пр-т, д. 10')`,
+          [defaultCustomers[1].customer_id, dateBeforeP1_B.toISOString().slice(0, 19).replace('T', ' '), totalB, totalB]
+        );
+        await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordBeforeB.insertId, defaultBooks[0].book_id, defaultBooks[0].price]);
+        await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordBeforeB.insertId, `INV-SEED-${ordBeforeB.insertId}`, totalB]);
+
+        // Ivanov buys Book 1 with SPRING100 promo (During Promo 1)
+        if (promoSpring) {
+          const dateDuringP1_A = new Date(); dateDuringP1_A.setDate(now.getDate() - 10);
+          const totalDuringA = defaultBooks[0].price;
+          const netDuringA = Math.max(0, totalDuringA - 100.00);
+          const ordDuringA = await query(
+            `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, promotion_id, status, shipping_address) 
+             VALUES (?, ?, 'sale', ?, 100, ?, ?, 'completed', 'г. Москва, ул. Ленина, д. 5')`,
+            [defaultCustomers[0].customer_id, dateDuringP1_A.toISOString().slice(0, 19).replace('T', ' '), totalDuringA, netDuringA, promoSpring.promotion_id]
+          );
+          await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordDuringA.insertId, defaultBooks[0].book_id, defaultBooks[0].price]);
+          await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordDuringA.insertId, `INV-SEED-${ordDuringA.insertId}`, netDuringA]);
+
+          // Petrov buys Book 1 and Book 3 with SPRING100 promo (During Promo 1)
+          const dateDuringP1_B = new Date(); dateDuringP1_B.setDate(now.getDate() - 8);
+          const totalDuringB = Number(defaultBooks[0].price) + Number(defaultBooks[2].price);
+          const netDuringB = totalDuringB - 100.00;
+          const ordDuringB = await query(
+            `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, promotion_id, status, shipping_address) 
+             VALUES (?, ?, 'sale', ?, 100, ?, ?, 'completed', 'г. Казань, ул. Баумана, д. 12')`,
+            [defaultCustomers[2].customer_id, dateDuringP1_B.toISOString().slice(0, 19).replace('T', ' '), totalDuringB, netDuringB, promoSpring.promotion_id]
+          );
+          await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordDuringB.insertId, defaultBooks[0].book_id, defaultBooks[0].price]);
+          await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordDuringB.insertId, defaultBooks[2].book_id, defaultBooks[2].price]);
+          await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordDuringB.insertId, `INV-SEED-${ordDuringB.insertId}`, netDuringB]);
+        }
+
+        // Smirnova buys Book 3 (Before Promo 2)
+        const dateBeforeP2_A = new Date(); dateBeforeP2_A.setDate(now.getDate() - 6);
+        const totalC = defaultBooks[2].price;
+        const ordBeforeC = await query(
+          `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, status, shipping_address) 
+           VALUES (?, ?, 'sale', ?, 0, ?, 'completed', 'г. Санкт-Петербург, Невский пр-т, д. 10')`,
+          [defaultCustomers[1].customer_id, dateBeforeP2_A.toISOString().slice(0, 19).replace('T', ' '), totalC, totalC]
+        );
+        await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordBeforeC.insertId, defaultBooks[2].book_id, defaultBooks[2].price]);
+        await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordBeforeC.insertId, `INV-SEED-${ordBeforeC.insertId}`, totalC]);
+
+        // Ivanov buys Book 1 with SCIFI15 promo (During Promo 2 - 15% discount)
+        if (promoScifi) {
+          const dateDuringP2_A = new Date(); dateDuringP2_A.setDate(now.getDate() - 3);
+          const totalDuringC = defaultBooks[0].price;
+          const discC = Number((totalDuringC * 0.15).toFixed(2));
+          const netDuringC = totalDuringC - discC;
+          const ordDuringC = await query(
+            `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, promotion_id, status, shipping_address) 
+             VALUES (?, ?, 'sale', ?, ?, ?, ?, 'completed', 'г. Москва, ул. Ленина, д. 5')`,
+            [defaultCustomers[0].customer_id, dateDuringP2_A.toISOString().slice(0, 19).replace('T', ' '), totalDuringC, discC, netDuringC, promoScifi.promotion_id]
+          );
+          await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordDuringC.insertId, defaultBooks[0].book_id, defaultBooks[0].price]);
+          await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordDuringC.insertId, `INV-SEED-${ordDuringC.insertId}`, netDuringC]);
+
+          // Petrov preorders Book 2 with SCIFI15 promo (During Promo 2)
+          const dateDuringP2_B = new Date(); dateDuringP2_B.setDate(now.getDate() - 1);
+          const totalDuringD = defaultBooks[1].price;
+          const discD = Number((totalDuringD * 0.15).toFixed(2));
+          const netDuringD = totalDuringD - discD;
+          const ordDuringD = await query(
+            `INSERT INTO orders (customer_id, order_date, order_type, total_amount, discount_amount, net_amount, promotion_id, status, shipping_address) 
+             VALUES (?, ?, 'preorder', ?, ?, ?, ?, 'preordered', 'г. Казань, ул. Баумана, д. 12')`,
+            [defaultCustomers[2].customer_id, dateDuringP2_B.toISOString().slice(0, 19).replace('T', ' '), totalDuringD, discD, netDuringD, promoScifi.promotion_id]
+          );
+          await query(`INSERT INTO order_items (order_id, book_id, quantity, unit_price) VALUES (?, ?, 1, ?)`, [ordDuringD.insertId, defaultBooks[1].book_id, defaultBooks[1].price]);
+          await query(`INSERT INTO invoices (order_id, invoice_number, total_amount, paid_status) VALUES (?, ?, ?, 1)`, [ordDuringD.insertId, `INV-SEED-${ordDuringD.insertId}`, netDuringD]);
+        }
+        
+        console.log('Mock database seeding successfully completed!');
+      } else {
+        console.log('Database already has order data or dependencies are not met.');
+      }
+    } catch (err) {
+      console.error('Error seeding mock database:', err);
+    }
+  }
+
   await setupDatabase();
+  await seedMockData();
 
   app.post('/api/register', async (req, res) => {
     const { first_name, last_name, email, phone, password } = req.body;
@@ -849,6 +1344,9 @@ async function startServer() {
         `Создан новый заказ (${order_type}) на сумму ${net_amount} ₽`,
         order_type
       ]);
+
+      // Asynchronously send detailed email receipt via Yandex Mail and App Password
+      sendReceiptEmail(orderId).catch(err => console.error('[Email Service Error]', err));
 
       res.json({ message: 'Заказ создан', orderId });
     } catch (err) { res.status(500).json({ error: (err as Error).message }); }

@@ -92,24 +92,33 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 export default function App() {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [mode, setMode] = useState<'admin' | 'user'>('user');
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [mode, setMode] = useState<'admin' | 'user'>(() => {
+    const saved = localStorage.getItem('user');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.isAdmin ? 'admin' : 'user';
+    }
+    return 'user';
+  });
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      if (parsedUser.isAdmin) {
-        setMode('admin');
-      }
-    }
+    const handleAuthRequest = () => {
+      setShowLogin(true);
+    };
+    window.addEventListener('auth-request', handleAuthRequest);
+    return () => window.removeEventListener('auth-request', handleAuthRequest);
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
-    window.location.reload();
+    setMode('user');
+    setShowLogin(false);
   };
 
   const navItems = [
@@ -124,13 +133,13 @@ export default function App() {
   const renderView = () => {
     const view = (() => {
       switch (activeView) {
-        case 'dashboard': return <Dashboard />;
+        case 'dashboard': return <Dashboard onViewChange={setActiveView} />;
         case 'inventory': return <Inventory />;
         case 'clients': return <Clients />;
         case 'promotions': return <Promotions />;
         case 'sales': return <Sales />;
         case 'reports': return <Reports />;
-        default: return <Dashboard />;
+        default: return <Dashboard onViewChange={setActiveView} />;
       }
     })();
 
@@ -176,8 +185,22 @@ export default function App() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  if (!user) {
-    return <Login onLogin={(u) => { setUser(u); if (u.isAdmin) setMode('admin'); localStorage.setItem('user', JSON.stringify(u)); }} />;
+  if (showLogin) {
+    return (
+      <Login 
+        onLogin={(u) => { 
+          setUser(u); 
+          if (u.isAdmin) {
+            setMode('admin');
+          } else {
+            setMode('user');
+          }
+          localStorage.setItem('user', JSON.stringify(u)); 
+          setShowLogin(false);
+        }} 
+        onGuestAccess={() => setShowLogin(false)}
+      />
+    );
   }
 
   if (mode === 'user') {
@@ -191,7 +214,7 @@ export default function App() {
             Вернуться в админку
           </button>
         )}
-        <UserSite />
+        <UserSite user={user} onLogout={handleLogout} />
       </div>
     );
   }

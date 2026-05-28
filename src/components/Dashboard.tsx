@@ -22,7 +22,8 @@ import {
 } from 'recharts';
 import { SalesReport } from '../types';
 
-export default function Dashboard() {
+export default function Dashboard({ onViewChange }: { onViewChange?: (view: 'dashboard' | 'inventory' | 'clients' | 'promotions' | 'sales' | 'reports') => void }) {
+  const [daysLimit, setDaysLimit] = useState<7 | 30>(7);
   const [salesData, setSalesData] = useState<SalesReport[]>([]);
   const [topCategories, setTopCategories] = useState<{label: string, value: number, color: string}[]>([]);
   const [stats, setStats] = useState({
@@ -37,12 +38,6 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    fetch('/api/reports/sales?period=day')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setSalesData(data);
-      });
-
     fetch('/api/reports/top-categories')
       .then(res => res.json())
       .then(data => {
@@ -75,7 +70,39 @@ export default function Dashboard() {
       .catch(err => {
         console.error('Error fetching clients:', err);
       });
+
+    fetch('/api/orders?all=true')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setStats(prev => ({ ...prev, totalSales: data.length }));
+        } else {
+          console.error('Expected array for orders, got:', data);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching orders:', err);
+      });
   }, []);
+
+  // Fetch sales report based on dynamic period limits
+  useEffect(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - daysLimit);
+    
+    const start_date = start.toISOString().split('T')[0];
+    const end_date = end.toISOString().split('T')[0];
+
+    fetch(`/api/reports/sales?period=day&start_date=${start_date}&end_date=${end_date}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setSalesData(data);
+      })
+      .catch(err => {
+        console.error('Error fetching sales report:', err);
+      });
+  }, [daysLimit]);
 
   useEffect(() => {
     if (Array.isArray(salesData) && salesData.length > 0) {
@@ -98,7 +125,6 @@ export default function Dashboard() {
         ...prev, 
         totalRevenue, 
         totalRevenueTrend: revenueTrend,
-        totalSales: salesData.length,
         totalSalesTrend: 5.2 // Mocking sales count trend for now as we don't have separate count per day easily
       }));
     }
@@ -112,7 +138,8 @@ export default function Dashboard() {
       trend: `${stats.totalRevenueTrend >= 0 ? '+' : ''}${stats.totalRevenueTrend.toFixed(1)}%`, 
       trendUp: stats.totalRevenueTrend >= 0, 
       color: 'text-indigo-600', 
-      bg: 'bg-indigo-50' 
+      bg: 'bg-indigo-50',
+      view: 'reports' as const
     },
     { 
       label: 'Всего продаж', 
@@ -121,16 +148,18 @@ export default function Dashboard() {
       trend: `${stats.totalSalesTrend >= 0 ? '+' : ''}${stats.totalSalesTrend.toFixed(1)}%`, 
       trendUp: stats.totalSalesTrend >= 0, 
       color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
+      bg: 'bg-blue-50',
+      view: 'sales' as const
     },
     { 
-      label: 'Активные клиенты', 
+      label: 'Всего клиентов', 
       value: (stats.activeClients || 0).toString(), 
       icon: Users, 
       trend: '+2.4%', 
       trendUp: true, 
       color: 'text-violet-600', 
-      bg: 'bg-violet-50' 
+      bg: 'bg-violet-50',
+      view: 'clients' as const
     },
     { 
       label: 'Книг в наличии', 
@@ -139,7 +168,8 @@ export default function Dashboard() {
       trend: '-1.2%', 
       trendUp: false, 
       color: 'text-amber-600', 
-      bg: 'bg-amber-50' 
+      bg: 'bg-amber-50',
+      view: 'inventory' as const
     },
   ];
 
@@ -151,17 +181,17 @@ export default function Dashboard() {
           <p className="text-[#6B7280] mt-2 text-lg font-medium">Добро пожаловать в панель управления Книга24.</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="px-5 py-2.5 bg-white border border-[#F1F1F4] rounded-[20px] shadow-sm text-sm font-bold flex items-center gap-3">
-            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-lg shadow-emerald-200" />
-            <span className="text-[#1A1A1A]">Система активна</span>
-          </div>
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {cards.map((card, i) => (
-          <div key={i} className="bg-white p-10 rounded-[40px] border border-[#F1F1F4] shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden">
+          <div 
+            key={i} 
+            onClick={() => onViewChange?.(card.view)}
+            className="bg-white p-10 rounded-[40px] border border-[#F1F1F4] shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden cursor-pointer"
+          >
             <div className="absolute top-0 right-0 w-32 h-32 bg-gray-50 rounded-full -mr-16 -mt-16 transition-all group-hover:scale-110" />
             <div className="flex items-start justify-between relative z-10">
               <div className={cn("p-5 rounded-2xl transition-all group-hover:scale-110 duration-500 shadow-sm", card.bg)}>
@@ -192,14 +222,18 @@ export default function Dashboard() {
               <h3 className="text-2xl font-bold text-[#1A1A1A]">Рост выручки</h3>
               <p className="text-sm text-[#6B7280] mt-1 font-medium">Динамика продаж за выбранный период</p>
             </div>
-            <select className="bg-gray-50 border border-[#F1F1F4] rounded-2xl text-xs font-bold px-6 py-3.5 outline-none hover:bg-white transition-all cursor-pointer shadow-sm focus:ring-2 focus:ring-indigo-600/20">
-              <option>Последние 7 дней</option>
-              <option>Последние 30 дней</option>
+            <select 
+              value={daysLimit}
+              onChange={(e) => setDaysLimit(Number(e.target.value) as 7 | 30)}
+              className="bg-gray-50 border border-[#F1F1F4] rounded-2xl text-xs font-bold px-6 py-3.5 outline-none hover:bg-white transition-all cursor-pointer shadow-sm focus:ring-2 focus:ring-indigo-600/20"
+            >
+              <option value={7}>Последние 7 дней</option>
+              <option value={30}>Последние 30 дней</option>
             </select>
           </div>
           <div className="h-[400px] relative z-10">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={salesData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+              <AreaChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2}/>
@@ -212,7 +246,7 @@ export default function Dashboard() {
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fontSize: 11, fill: '#9CA3AF', fontWeight: 600 }}
-                  dy={20}
+                  dy={12}
                   tickFormatter={(value) => {
                     if (!value) return '';
                     try {
@@ -256,7 +290,7 @@ export default function Dashboard() {
         <div className="bg-white p-12 rounded-[48px] border border-[#F1F1F4] shadow-sm flex flex-col relative overflow-hidden">
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-600/5 rounded-full -ml-32 -mb-32 blur-3xl" />
           <div className="relative z-10">
-            <h3 className="text-2xl font-bold text-[#1A1A1A]">Топ категорий</h3>
+            <h3 className="text-2xl font-bold text-[#1A1A1A]">Топ жанров</h3>
             <p className="text-sm text-[#6B7280] mt-1 font-medium">Распределение продаж по жанрам</p>
           </div>
           <div className="space-y-10 flex-1 mt-12 relative z-10">

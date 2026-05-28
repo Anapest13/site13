@@ -35,6 +35,7 @@ export default function Reports() {
   const [showFilters, setShowFilters] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [promoMetric, setPromoMetric] = useState<'revenue' | 'transactions'>('revenue');
 
   const fetchReports = () => {
     fetch('/api/reports/user-activity')
@@ -101,7 +102,7 @@ export default function Reports() {
         const res = await fetch(`/api/reports/detailed-sales?${queryParams.toString()}`);
         const detailedData = await res.json();
 
-        if (Array.isArray(detailedData) && detailedData.length > 0) {
+        if (Array.isArray(detailedData)) {
           const sheetName = p === 'day' ? 'День' : (p === 'month' ? 'Месяц' : 'Год');
           const worksheet = workbook.addWorksheet(sheetName);
 
@@ -142,88 +143,100 @@ export default function Reports() {
             };
           });
 
-          // Add data
-          detailedData.forEach(item => {
-            let statusRu = item.status;
-            if (item.status === 'completed') statusRu = 'Выполнен';
-            else if (item.status === 'pending') statusRu = 'В обработке';
-            else if (item.status === 'reserved') statusRu = 'Бронь';
-            else if (item.status === 'preordered') statusRu = 'Предзаказ';
-            else if (item.status === 'cancelled') statusRu = 'Отменен';
+          if (detailedData.length === 0) {
+            worksheet.mergeCells('A3:Q3');
+            const emptyCell = worksheet.getCell('A3');
+            emptyCell.value = 'Нет данных о продажах за этот период';
+            emptyCell.font = { size: 11, italic: true, color: { argb: 'FF9CA3AF' } };
+            emptyCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            worksheet.getRow(3).height = 30;
+          } else {
+            // Add data
+            detailedData.forEach(item => {
+              let statusRu = item.status;
+              if (item.status === 'completed') statusRu = 'Выполнен';
+              else if (item.status === 'pending') statusRu = 'В обработке';
+              else if (item.status === 'reserved') statusRu = 'Бронь';
+              else if (item.status === 'preordered') statusRu = 'Предзаказ';
+              else if (item.status === 'cancelled') statusRu = 'Отменен';
 
-            const rowValue = [
-              item.order_id,
-              new Date(item.order_date).toLocaleString('ru-RU'),
-              item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
-              statusRu,
-              item.customer_name || 'Гость',
-              item.customer_email || '-',
-              item.book_title,
-              item.book_isbn,
-              item.publisher_name || '-',
-              item.quantity,
-              Number(item.unit_price),
-              Number(item.item_total),
-              Number(item.order_total),
-              Number(item.order_discount),
-              Number(item.order_net),
-              item.promotion_name || '-',
-              item.promotion_code || '-'
-            ];
-            const row = worksheet.addRow(rowValue);
-            
-            // Format cells
-            row.eachCell((cell, colNumber) => {
-              cell.border = {
-                top: { style: 'thin' },
-                left: { style: 'thin' },
-                bottom: { style: 'thin' },
-                right: { style: 'thin' }
-              };
-              cell.alignment = { vertical: 'middle' };
+              const rowValue = [
+                item.order_id,
+                new Date(item.order_date).toLocaleString('ru-RU'),
+                item.order_type === 'sale' ? 'Продажа' : (item.order_type === 'preorder' ? 'Предзаказ' : 'Бронь'),
+                statusRu,
+                item.customer_name || 'Гость',
+                item.customer_email || '-',
+                item.book_title,
+                item.book_isbn,
+                item.publisher_name || '-',
+                item.quantity,
+                Number(item.unit_price),
+                Number(item.item_total),
+                Number(item.order_total),
+                Number(item.order_discount),
+                Number(item.order_net),
+                item.promotion_name || '-',
+                item.promotion_code || '-'
+              ];
+              const row = worksheet.addRow(rowValue);
               
-              // Align numbers
-              if (colNumber >= 10 && colNumber <= 15) {
-                cell.alignment = { horizontal: 'right', vertical: 'middle' };
-                cell.numFmt = '#,##0.00';
+              // Format cells
+              row.eachCell((cell, colNumber) => {
+                cell.border = {
+                  top: { style: 'thin' },
+                  left: { style: 'thin' },
+                  bottom: { style: 'thin' },
+                  right: { style: 'thin' }
+                };
+                cell.alignment = { vertical: 'middle' };
+                
+                // Align numbers
+                if (colNumber === 10) {
+                  cell.alignment = { horizontal: 'right', vertical: 'middle' };
+                  cell.numFmt = '#,##0'; // Integer for quantity
+                } else if (colNumber >= 11 && colNumber <= 15) {
+                  cell.alignment = { horizontal: 'right', vertical: 'middle' };
+                  cell.numFmt = '#,##0.00';
+                }
+              });
+
+              // Add color to status column (Index 4 is 'Статус')
+              const statusCell = row.getCell(4);
+              statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+              const statusValue = item.status?.toLowerCase();
+              
+              if (statusValue === 'completed' || statusValue === 'завершено' || statusValue === 'выполнен') {
+                statusCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFD1FAE5' } // emerald-100
+                };
+                statusCell.font = { color: { argb: 'FF065F46' }, bold: true }; // emerald-600
+              } else if (statusValue === 'pending' || statusValue === 'в ожидании' || statusValue === 'в обработке') {
+                statusCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFFEF3C7' } // amber-100
+                };
+                statusCell.font = { color: { argb: 'FFB45309' }, bold: true }; // amber-600
+              } else if (statusValue === 'reserved' || statusValue === 'бронь') {
+                statusCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFDBEAFE' } // blue-100
+                };
+                statusCell.font = { color: { argb: 'FF1E40AF' }, bold: true }; // blue-600
+              } else {
+                statusCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFF3F4F6' } // gray-100
+                };
+                statusCell.font = { color: { argb: 'FF4B5563' }, bold: true }; // gray-600
               }
             });
-
-            // Add color to status column (Index 4 is 'Статус')
-            const statusCell = row.getCell(4);
-            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
-            const statusValue = item.status?.toLowerCase();
-            
-            if (statusValue === 'completed' || statusValue === 'завершено' || statusValue === 'выполнен') {
-              statusCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFD1FAE5' } // emerald-100
-              };
-              statusCell.font = { color: { argb: 'FF065F46' }, bold: true }; // emerald-600
-            } else if (statusValue === 'pending' || statusValue === 'в ожидании' || statusValue === 'в обработке') {
-              statusCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFFEF3C7' } // amber-100
-              };
-              statusCell.font = { color: { argb: 'FFB45309' }, bold: true }; // amber-600
-            } else if (statusValue === 'reserved' || statusValue === 'бронь') {
-              statusCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFDBEAFE' } // blue-100
-              };
-              statusCell.font = { color: { argb: 'FF1E40AF' }, bold: true }; // blue-600
-            } else {
-              statusCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF3F4F6' } // gray-100
-              };
-              statusCell.font = { color: { argb: 'FF4B5563' }, bold: true }; // gray-600
-            }
-          });
+          }
 
           // Set column widths
           worksheet.columns = [
@@ -292,7 +305,7 @@ export default function Reports() {
             )}
           >
             <Filter className="w-5 h-5" />
-            Фильтры
+            Выбрать период
           </button>
         </div>
       </div>
@@ -350,7 +363,7 @@ export default function Reports() {
         </div>
         <div className="h-[400px] relative z-10">
           <ResponsiveContainer width="100%" height="100%" key={`chart-${period}-${salesHistory.length}-${salesHistory.reduce((sum, item) => sum + (item.total || 0), 0)}`}>
-            <BarChart data={salesHistory} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+            <BarChart data={salesHistory} margin={{ top: 20, right: 20, left: 60, bottom: 40 }}>
               <defs>
                 <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
@@ -363,7 +376,7 @@ export default function Reports() {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fontSize: 11, fill: '#9CA3AF', fontWeight: 600 }}
-                dy={15}
+                dy={12}
                 tickFormatter={(value) => {
                   if (!value) return '';
                   if (period === 'month') {
@@ -386,8 +399,8 @@ export default function Reports() {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fontSize: 11, fill: '#9CA3AF', fontWeight: 600 }}
-                tickFormatter={(value) => `${value} ₽`}
-                dx={-10}
+                tickFormatter={(value) => `${value.toLocaleString('ru-RU')} ₽`}
+                width={80}
               />
               <Tooltip 
                 cursor={{ fill: '#F9FAFB', radius: 12 }}
@@ -413,54 +426,6 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-1 gap-10">
-        <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden p-10">
-          <h3 className="text-2xl font-bold text-[#1A1A1A] mb-2">Влияние акций на активность</h3>
-          <p className="text-sm text-[#6B7280] mb-8">Сравнение активности пользователей до и во время проведения акций.</p>
-          {promoImpact.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {promoImpact.map((item: any, i: number) => (
-                <div key={i} className="p-6 bg-gray-50 rounded-3xl border border-[#F1F1F4] space-y-6">
-                  <h4 className="font-bold text-lg text-indigo-600">{item.name}</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-4">
-                      <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">ДО АКЦИИ</p>
-                      <div className="space-y-2">
-                        {['sale', 'booking', 'preorder'].map(type => {
-                          const activity = (item.activityBefore || []).find((a: any) => a.order_type === type);
-                          return (
-                            <div key={type} className="flex justify-between text-xs">
-                              <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
-                              <span className="font-bold">{activity ? activity.count : 0}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">ВО ВРЕМЯ</p>
-                      <div className="space-y-2">
-                        {['sale', 'booking', 'preorder'].map(type => {
-                          const activity = (item.activityDuring || []).find((a: any) => a.order_type === type);
-                          return (
-                            <div key={type} className="flex justify-between text-xs">
-                              <span className="text-[#6B7280] capitalize">{type === 'sale' ? 'Покупка' : type === 'booking' ? 'Бронь' : 'Предзаказ'}</span>
-                              <span className="font-bold text-indigo-600">{activity ? activity.count : 0}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-12 text-center bg-gray-50 rounded-3xl border border-[#F1F1F4]">
-              <p className="text-[#6B7280]">Нет данных по активным акциям для анализа.</p>
-            </div>
-          )}
-        </div>
-
         <div className="bg-white rounded-[40px] border border-[#F1F1F4] shadow-sm overflow-hidden">
         <div className="px-10 py-8 border-b border-[#F1F1F4] bg-gray-50/30">
           <h3 className="text-2xl font-bold text-[#1A1A1A]">Активность пользователей</h3>

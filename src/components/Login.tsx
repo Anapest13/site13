@@ -9,9 +9,10 @@ function cn(...inputs: ClassValue[]) {
 
 interface LoginProps {
   onLogin: (user: any) => void;
+  onGuestAccess?: () => void;
 }
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin, onGuestAccess }: LoginProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -204,6 +205,15 @@ export default function Login({ onLogin }: LoginProps) {
               )}
             </button>
           </form>
+
+          {onGuestAccess && (
+            <button 
+              onClick={onGuestAccess}
+              className="w-full mt-3 bg-gray-100 text-[#1A1A1A] py-3.5 rounded-2xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+            >
+              Продолжить без авторизации
+            </button>
+          )}
 
           <div className="mt-8 pt-8 border-t border-[#F3F4F6] text-center">
             <p className="text-sm text-[#6B7280]">
