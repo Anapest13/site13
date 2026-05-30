@@ -49,7 +49,7 @@ export default function UserSite({ user: propUser, onLogout: propOnLogout }: { u
   const [filterType, setFilterType] = useState<'all' | 'bestsellers' | 'newest'>('all');
   const [books, setBooks] = useState<Book[]>([]);
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [cart, setCart] = useState<{ book: Book, quantity: number, type: 'sale' | 'booking' | 'preorder' }[]>([]);
+  const [cart, setCart] = useState<{ book: Book, quantity: number, type: 'booking' | 'preorder' }[]>([]);
   const [search, setSearch] = useState('');
   const [authorNameSearch, setAuthorNameSearch] = useState('');
   const [publisherNameSearch, setPublisherNameSearch] = useState('');
@@ -176,7 +176,7 @@ export default function UserSite({ user: propUser, onLogout: propOnLogout }: { u
     return () => { (window as any).setSelectedBookGlobal = null; };
   }, []);
 
-  const addToCart = (book: Book | null, type: 'sale' | 'booking' | 'preorder' = 'sale') => {
+  const addToCart = (book: Book | null, type: 'booking' | 'preorder' = 'booking') => {
     if (!book) return;
     // Stock validation
     if (type !== 'preorder') {
@@ -1303,19 +1303,28 @@ export default function UserSite({ user: propUser, onLogout: propOnLogout }: { u
                     </div>
                     <div className="flex gap-3">
                       {selectedBook.quantity_in_stock > 0 ? (
-                        <button 
-                          onClick={() => { addToCart(selectedBook); setSelectedBook(null); }}
-                          className="px-10 py-5 bg-[#1A1A1A] text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-black/20 active:scale-95 transition-all"
-                        >
-                          <ShoppingCart className="w-5 h-5" />
-                          В корзину
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => { addToCart(selectedBook, 'booking'); setSelectedBook(null); }}
+                            className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-blue-600/20 active:scale-95 transition-all"
+                          >
+                            <Clock className="w-5 h-5" />
+                            Забронировать
+                          </button>
+                          <button 
+                            onClick={() => { addToCart(selectedBook, 'preorder'); setSelectedBook(null); }}
+                            className="px-10 py-5 bg-amber-600 text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-amber-600/20 active:scale-95 transition-all"
+                          >
+                            <Calendar className="w-5 h-5" />
+                            Предзаказать
+                          </button>
+                        </>
                       ) : (
                         <button 
                           onClick={() => { addToCart(selectedBook, 'preorder'); setSelectedBook(null); }}
-                          className="px-10 py-5 bg-amber-500 text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-amber-500/20 active:scale-95 transition-all"
+                          className="px-10 py-5 bg-amber-600 text-white rounded-2xl font-bold flex items-center gap-3 hover:shadow-2xl hover:shadow-amber-600/20 active:scale-95 transition-all"
                         >
-                          <Clock className="w-5 h-5" />
+                          <Calendar className="w-5 h-5" />
                           Предзаказать
                         </button>
                       )}
@@ -1343,7 +1352,7 @@ export default function UserSite({ user: propUser, onLogout: propOnLogout }: { u
 
 interface BookCardProps {
   book: Book;
-  onAddToCart: (book: Book, type?: 'sale' | 'booking' | 'preorder') => void;
+  onAddToCart: (book: Book, type?: 'booking' | 'preorder') => void;
   onPublisherClick?: (publisher: any) => void;
   onAuthorClick?: (author: any) => void;
 }
@@ -1390,13 +1399,6 @@ const BookCard: React.FC<BookCardProps> = ({ book, onAddToCart, onPublisherClick
           <div className="flex gap-2">
             {!isOutOfStock ? (
               <>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'sale'); }}
-                  className="p-2 bg-[#1A1A1A] text-white rounded-lg hover:shadow-lg transition-all"
-                  title="Купить"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onAddToCart(book, 'booking'); }}
                   className="p-2 bg-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
@@ -1758,12 +1760,14 @@ function OrdersList({ customerId }: { customerId: number }) {
                 order.status === 'completed' ? "text-emerald-600" :
                 order.status === 'cancelled' ? "text-red-600" :
                 order.status === 'pending' ? "text-amber-600" :
+                order.status === 'preordered' ? "text-amber-600" :
                 order.status === 'reserved' ? "text-blue-600" : "text-blue-600"
               )}>
                 {order.status === 'completed' ? 'Выполнен' : 
                  order.status === 'cancelled' ? 'Отменен' :
                  order.status === 'pending' ? 'В обработке' : 
-                 order.status === 'reserved' ? 'Бронь' : order.status}
+                 order.status === 'reserved' ? 'Бронь' : 
+                 order.status === 'preordered' ? 'Предзаказ' : order.status}
               </span>
             </div>
             <button 

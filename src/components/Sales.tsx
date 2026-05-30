@@ -24,7 +24,7 @@ export default function Sales() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newSale, setNewSale] = useState<Partial<Order & { book_id: number, quantity: number, client_id: number, sale_type: string }>>({
-    sale_type: 'sale',
+    sale_type: 'booking',
     quantity: 1
   });
 
@@ -555,7 +555,6 @@ export default function Sales() {
                   <label className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider px-1">Тип операции</label>
                   <div className="flex gap-3 p-1.5 bg-gray-50 rounded-2xl border border-[#F1F1F4]">
                     {[
-                      { id: 'sale', label: 'Продажа' },
                       { id: 'booking', label: 'Бронь' },
                       { id: 'preorder', label: 'Предзаказ' }
                     ].map((type) => (
